@@ -74,6 +74,7 @@ require (
 	k8s.io/cri-api v0.22.0
 	k8s.io/klog/v2 v2.9.0
 	k8s.io/utils v0.0.0-20210707171843-4b05e18ac7d9
+	sigs.k8s.io/yaml v1.2.0
 )
 
 // When updating replace rules, make sure to also update the rules in integration/client/go.mod and api/go.mod
@@ -83,6 +84,7 @@ replace (
 	github.com/containerd/containerd => ./.empty-mod/
 	// Use the relative local source of the github.com/containerd/containerd/api to build
 	github.com/containerd/containerd/api => ./api
+	github.com/containerd/nri => github.com/klihub/nri v0.0.0-20210916151032-5665bdaef70c
 	github.com/gogo/googleapis => github.com/gogo/googleapis v1.3.2
 	// urfave/cli must be <= v1.22.1 due to a regression: https://github.com/urfave/cli/issues/1092
 	github.com/urfave/cli => github.com/urfave/cli v1.22.1

@@ -119,10 +119,15 @@ github.com/containerd/go-runc
 ## explicit
 github.com/containerd/imgcrypt
 github.com/containerd/imgcrypt/images/encryption
-# github.com/containerd/nri v0.1.0
+# github.com/containerd/nri v0.1.0 => github.com/klihub/nri v0.0.0-20210916151032-5665bdaef70c
 ## explicit
 github.com/containerd/nri
 github.com/containerd/nri/types/v1
+github.com/containerd/nri/v2alpha1/pkg/api
+github.com/containerd/nri/v2alpha1/pkg/log
+github.com/containerd/nri/v2alpha1/pkg/net
+github.com/containerd/nri/v2alpha1/pkg/net/multiplex
+github.com/containerd/nri/v2alpha1/pkg/runtime
 # github.com/containerd/ttrpc v1.0.2
 ## explicit
 github.com/containerd/ttrpc
@@ -688,9 +693,11 @@ k8s.io/utils/integer
 # sigs.k8s.io/structured-merge-diff/v4 v4.1.2
 sigs.k8s.io/structured-merge-diff/v4/value
 # sigs.k8s.io/yaml v1.2.0
+## explicit
 sigs.k8s.io/yaml
 # github.com/containerd/containerd => ./.empty-mod/
 # github.com/containerd/containerd/api => ./api
+# github.com/containerd/nri => github.com/klihub/nri v0.0.0-20210916151032-5665bdaef70c
 # github.com/gogo/googleapis => github.com/gogo/googleapis v1.3.2
 # github.com/urfave/cli => github.com/urfave/cli v1.22.1
 # google.golang.org/genproto => google.golang.org/genproto v0.0.0-20200224152610-e50cd9704f63
