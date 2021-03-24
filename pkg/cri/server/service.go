@@ -57,6 +57,7 @@ type grpcServices interface {
 // CRIService is the interface implement CRI remote service server.
 type CRIService interface {
 	Run() error
+
 	// io.Closer is used by containerd to gracefully stop cri service.
 	io.Closer
 	plugin.Service
@@ -104,6 +105,8 @@ type criService struct {
 	// allCaps is the list of the capabilities.
 	// When nil, parsed from CapEff of /proc/self/status.
 	allCaps []string // nolint
+	// nriClient is the NRI (v2 proto) adaptation for containerd CRI service.
+	nri *nriClient
 }
 
 // NewCRIService returns a new instance of CRIService
@@ -149,6 +152,11 @@ func NewCRIService(config criconfig.Config, client *containerd.Client) (CRIServi
 
 	// Preload base OCI specs
 	c.baseOCISpecs, err = loadBaseOCISpecs(&config)
+	if err != nil {
+		return nil, err
+	}
+
+	c.nri, err = newNRIClient(c)
 	if err != nil {
 		return nil, err
 	}
@@ -213,6 +221,10 @@ func (c *criService) Run() error {
 		}
 	}()
 
+	if err := c.nri.Start(); err != nil {
+		return errors.Wrap(err, "failed to start NRI")
+	}
+
 	// Set the server as initialized. GRPC services could start serving traffic.
 	c.initialized.Set()
 
@@ -273,6 +285,8 @@ func (c *criService) Close() error {
 	if err := c.streamServer.Stop(); err != nil {
 		return errors.Wrap(err, "failed to stop stream server")
 	}
+	c.nri.Stop()
+
 	return nil
 }
 

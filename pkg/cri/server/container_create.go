@@ -39,6 +39,9 @@ import (
 	containerstore "github.com/containerd/containerd/pkg/cri/store/container"
 	"github.com/containerd/containerd/pkg/cri/util"
 	ctrdutil "github.com/containerd/containerd/pkg/cri/util"
+
+	"sigs.k8s.io/yaml"
+	"strings"
 )
 
 func init() {
@@ -146,6 +149,21 @@ func (c *criService) CreateContainer(ctx context.Context, r *runtime.CreateConta
 		log.G(ctx).Debugf("Ignoring volumes defined in image %v because IgnoreImageDefinedVolumes is set", image.ID)
 	}
 
+	defer func() {
+		if retErr != nil {
+			err = c.nri.RollbackCreateContainer(ctx, &meta)
+			if err != nil {
+				log.G(ctx).Errorf("failed to roll back container creation: %v", err)
+			}
+		}
+	}()
+
+	hooks, err := c.nri.CreateContainer(ctx, &meta)
+	if err != nil {
+		return nil, errors.Wrapf(err, "NRI CreateContainer failed")
+	}
+
+
 	// Generate container mounts.
 	mounts := c.containerMounts(sandboxID, config)
 
@@ -156,7 +174,7 @@ func (c *criService) CreateContainer(ctx context.Context, r *runtime.CreateConta
 	log.G(ctx).Debugf("Use OCI runtime %+v for sandbox %q and container %q", ociRuntime, sandboxID, id)
 
 	spec, err := c.containerSpec(id, sandboxID, sandboxPid, sandbox.NetNSPath, containerName, containerdImage.Name(), config, sandboxConfig,
-		&image.ImageSpec.Config, append(mounts, volumeMounts...), ociRuntime)
+		&image.ImageSpec.Config, append(mounts, volumeMounts...), ociRuntime, hooks)
 	if err != nil {
 		return nil, errors.Wrapf(err, "failed to generate container %q spec", id)
 	}
@@ -278,6 +296,11 @@ func (c *criService) CreateContainer(ctx context.Context, r *runtime.CreateConta
 		return nil, errors.Wrapf(err, "failed to add container %q into store", id)
 	}
 
+	if err = c.nri.ApplyPendingUpdates(ctx, meta.ID); err != nil {
+		log.G(ctx).Errorf("failed to apply pending NRI updates for %s: %v",
+			meta.ID, err)
+	}
+
 	return &runtime.CreateContainerResponse{ContainerId: id}, nil
 }
 
@@ -342,4 +365,15 @@ func (c *criService) runtimeSpec(id string, baseSpecFile string, opts ...oci.Spe
 	}
 
 	return spec, nil
+}
+
+func logDumpObject(prefix string, obj interface{}) {
+	msg, err := yaml.Marshal(obj)
+	if err != nil {
+		return
+	}
+
+	for _, line := range strings.Split(string(msg), "\n") {
+		log.L.Infof("%s%s", prefix, line)
+	}
 }
