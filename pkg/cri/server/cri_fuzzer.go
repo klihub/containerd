@@ -138,7 +138,7 @@ func FuzzCRI(data []byte) int {
 	}
 	defer client.Close()
 
-	c, err := NewCRIService(criconfig.Config{}, client)
+	c, err := NewCRIService(criconfig.Config{}, client, nil)
 	if err != nil {
 		panic(err)
 	}
