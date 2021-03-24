@@ -73,6 +73,13 @@ func (c *criService) RemoveContainer(ctx context.Context, r *runtime.RemoveConta
 		}
 	}()
 
+	if c.nri.isEnabled() {
+		err = c.nri.RemoveContainer(ctx, id)
+		if err != nil {
+			log.G(ctx).Errorf("NRI failed to remove container %q", id)
+		}
+	}
+
 	// NOTE(random-liu): Docker set container to "Dead" state when start removing the
 	// container so as to avoid start/restart the container again. However, for current
 	// kubelet implementation, we'll never start a container once we decide to remove it,

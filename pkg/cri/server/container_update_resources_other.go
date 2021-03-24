@@ -21,6 +21,7 @@ package server
 
 import (
 	"context"
+	"errors"
 	"fmt"
 
 	runtime "k8s.io/cri-api/pkg/apis/runtime/v1"
@@ -43,4 +44,11 @@ func (c *criService) UpdateContainerResources(ctx context.Context, r *runtime.Up
 		return nil, fmt.Errorf("failed to update resources: %w", err)
 	}
 	return &runtime.UpdateContainerResourcesResponse{}, nil
+}
+
+func (c *criService) updateContainerResources(ctx context.Context,
+	cntr containerstore.Container,
+	r *runtime.UpdateContainerResourcesRequest,
+	status containerstore.Status) (retErr error) {
+	return errors.New("NRI container resource update support not implemented")
 }
