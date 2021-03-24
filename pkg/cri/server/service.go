@@ -31,7 +31,9 @@ import (
 	"github.com/containerd/containerd/pkg/cri/streaming"
 	"github.com/containerd/containerd/pkg/kmutex"
 	"github.com/containerd/containerd/plugin"
+	"github.com/containerd/containerd/version"
 	cni "github.com/containerd/go-cni"
+	"github.com/pkg/errors"
 	"github.com/sirupsen/logrus"
 	"google.golang.org/grpc"
 	runtime "k8s.io/cri-api/pkg/apis/runtime/v1"
@@ -67,6 +69,7 @@ type grpcAlphaServices interface {
 // CRIService is the interface implement CRI remote service server.
 type CRIService interface {
 	Run() error
+
 	// io.Closer is used by containerd to gracefully stop cri service.
 	io.Closer
 	Register(*grpc.Server) error
@@ -118,6 +121,8 @@ type criService struct {
 	// one in-flight fetch request or unpack handler for a given descriptor's
 	// or chain ID.
 	unpackDuplicationSuppressor kmutex.KeyedLocker
+	// nriRuntime is the NRI (v2 proto) adaptation for containerd CRI service.
+	nri *nriRuntime
 }
 
 // NewCRIService returns a new instance of CRIService
@@ -178,6 +183,10 @@ func NewCRIService(config criconfig.Config, client *containerd.Client) (CRIServi
 	// Preload base OCI specs
 	c.baseOCISpecs, err = loadBaseOCISpecs(&config)
 	if err != nil {
+		return nil, err
+	}
+
+	if err = c.setupNRI(containerName, version.Version); err != nil {
 		return nil, err
 	}
 
@@ -249,6 +258,10 @@ func (c *criService) Run() error {
 		}
 	}()
 
+	if err := c.nri.start(); err != nil {
+		return errors.Wrap(err, "failed to start NRI")
+	}
+
 	// Set the server as initialized. GRPC services could start serving traffic.
 	c.initialized.Set()
 
@@ -311,6 +324,8 @@ func (c *criService) Close() error {
 	if err := c.streamServer.Stop(); err != nil {
 		return fmt.Errorf("failed to stop stream server: %w", err)
 	}
+	c.nri.stop()
+
 	return nil
 }
 
