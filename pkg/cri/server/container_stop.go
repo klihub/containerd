@@ -46,6 +46,11 @@ func (c *criService) StopContainer(ctx context.Context, r *runtime.StopContainer
 		return nil, err
 	}
 
+	err = c.nri.StopContainer(ctx, container.ID)
+	if err != nil {
+		return nil, errors.Wrapf(err, "NRI failed to stop container %q", r.GetContainerId())
+	}
+
 	return &runtime.StopContainerResponse{}, nil
 }
 
@@ -70,7 +75,7 @@ func (c *criService) stopContainer(ctx context.Context, container containerstore
 		}
 		// Don't return for unknown state, some cleanup needs to be done.
 		if state == runtime.ContainerState_CONTAINER_UNKNOWN {
-			return cleanupUnknownContainer(ctx, id, container)
+			return c.cleanupUnknownContainer(ctx, id, container)
 		}
 		return nil
 	}
@@ -85,7 +90,7 @@ func (c *criService) stopContainer(ctx context.Context, container containerstore
 			if !errdefs.IsNotFound(err) {
 				return errors.Wrapf(err, "failed to wait for task for %q", id)
 			}
-			return cleanupUnknownContainer(ctx, id, container)
+			return c.cleanupUnknownContainer(ctx, id, container)
 		}
 
 		exitCtx, exitCancel := context.WithCancel(context.Background())
@@ -188,7 +193,7 @@ func (c *criService) waitContainerStop(ctx context.Context, container containers
 }
 
 // cleanupUnknownContainer cleanup stopped container in unknown state.
-func cleanupUnknownContainer(ctx context.Context, id string, cntr containerstore.Container) error {
+func (c *criService) cleanupUnknownContainer(ctx context.Context, id string, cntr containerstore.Container) error {
 	// Reuse handleContainerExit to do the cleanup.
 	return handleContainerExit(ctx, &eventtypes.TaskExit{
 		ContainerID: id,
@@ -196,5 +201,5 @@ func cleanupUnknownContainer(ctx context.Context, id string, cntr containerstore
 		Pid:         0,
 		ExitStatus:  unknownExitCode,
 		ExitedAt:    time.Now(),
-	}, cntr)
+	}, cntr, c)
 }

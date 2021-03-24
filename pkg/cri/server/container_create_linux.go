@@ -120,6 +120,7 @@ func (c *criService) containerSpec(
 	imageConfig *imagespec.ImageConfig,
 	extraMounts []*runtime.Mount,
 	ociRuntime config.Runtime,
+	extraHooks *runtimespec.Hooks,
 ) (_ *runtimespec.Spec, retErr error) {
 	specOpts := []oci.SpecOpts{
 		oci.WithoutRunMount,
@@ -302,6 +303,11 @@ func (c *criService) containerSpec(
 				Type: runtimespec.CgroupNamespace,
 			}))
 	}
+
+	if extraHooks != nil {
+		specOpts = append(specOpts, oci.WithExtraHooks(extraHooks))
+	}
+
 	return c.runtimeSpec(id, ociRuntime.BaseRuntimeSpec, specOpts...)
 }
 

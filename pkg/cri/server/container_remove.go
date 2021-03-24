@@ -96,6 +96,11 @@ func (c *criService) RemoveContainer(ctx context.Context, r *runtime.RemoveConta
 			volatileContainerRootDir)
 	}
 
+	err = c.nri.RemoveContainer(ctx, id)
+	if err != nil {
+		log.G(ctx).Errorf("NRI failed to remove container %q", id)
+	}
+
 	c.containerStore.Delete(id)
 
 	c.containerNameIndex.ReleaseByKey(id)

@@ -1264,3 +1264,17 @@ func WithDevShmSize(kb int64) SpecOpts {
 		return ErrNoShmMount
 	}
 }
+
+// WithExtraHooks appends hooks.
+func WithExtraHooks(hooks *specs.Hooks) SpecOpts {
+	return func(_ context.Context, _ Client, _ *containers.Container, s *Spec) error {
+		s.Hooks = &specs.Hooks{}
+		s.Hooks.Prestart = append(s.Hooks.Prestart, hooks.Prestart...)
+		s.Hooks.CreateRuntime = append(s.Hooks.CreateRuntime, hooks.CreateRuntime...)
+		s.Hooks.CreateContainer = append(s.Hooks.CreateContainer, hooks.CreateContainer...)
+		s.Hooks.StartContainer = append(s.Hooks.StartContainer, hooks.StartContainer...)
+		s.Hooks.Poststart = append(s.Hooks.Poststart, hooks.Poststart...)
+		s.Hooks.Poststop = append(s.Hooks.Poststop, hooks.Poststop...)
+		return nil
+	}
+}
