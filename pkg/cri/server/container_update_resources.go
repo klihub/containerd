@@ -42,6 +42,16 @@ func (c *criService) UpdateContainerResources(ctx context.Context, r *runtime.Up
 	if err != nil {
 		return nil, errors.Wrap(err, "failed to find container")
 	}
+
+	if c.nri.isEnabled() {
+		resources := r.GetLinux()
+		annotations := r.GetAnnotations()
+		err = c.nri.UpdateContainer(ctx, container.ID, resources, annotations)
+		if err != nil {
+			return nil, errors.Wrapf(err, "NRI UpdateContainer failed")
+		}
+	}
+
 	// Update resources in status update transaction, so that:
 	// 1) There won't be race condition with container start.
 	// 2) There won't be concurrent resource update to the same container.

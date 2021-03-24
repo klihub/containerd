@@ -43,3 +43,10 @@ func (c *criService) UpdateContainerResources(ctx context.Context, r *runtime.Up
 	}
 	return &runtime.UpdateContainerResourcesResponse{}, nil
 }
+
+func (c *criService) updateContainerResources(ctx context.Context,
+	cntr containerstore.Container,
+	r *runtime.UpdateContainerResourcesRequest,
+	status containerstore.Status) (retErr error) {
+	return errors.New("NRI support not implemented.")
+}

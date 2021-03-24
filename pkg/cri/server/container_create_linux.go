@@ -119,8 +119,7 @@ func (c *criService) containerSpec(
 	sandboxConfig *runtime.PodSandboxConfig,
 	imageConfig *imagespec.ImageConfig,
 	extraMounts []*runtime.Mount,
-	ociRuntime config.Runtime,
-) (_ *runtimespec.Spec, retErr error) {
+	ociRuntime config.Runtime) (_ *runtimespec.Spec, retErr error) {
 	specOpts := []oci.SpecOpts{
 		oci.WithoutRunMount,
 	}
@@ -302,6 +301,7 @@ func (c *criService) containerSpec(
 				Type: runtimespec.CgroupNamespace,
 			}))
 	}
+
 	return c.runtimeSpec(id, ociRuntime.BaseRuntimeSpec, specOpts...)
 }
 

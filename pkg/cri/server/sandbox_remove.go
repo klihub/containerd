@@ -101,6 +101,10 @@ func (c *criService) RemovePodSandbox(ctx context.Context, r *runtime.RemovePodS
 		log.G(ctx).Tracef("Remove called for sandbox container %q that does not exist", id)
 	}
 
+	if c.nri.isEnabled() {
+		_ = c.nri.RemovePodSandbox(ctx, sandbox.ID)
+	}
+
 	// Remove sandbox from sandbox store. Note that once the sandbox is successfully
 	// deleted:
 	// 1) ListPodSandbox will not include this sandbox.

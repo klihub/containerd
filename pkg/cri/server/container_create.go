@@ -39,6 +39,8 @@ import (
 	containerstore "github.com/containerd/containerd/pkg/cri/store/container"
 	"github.com/containerd/containerd/pkg/cri/util"
 	ctrdutil "github.com/containerd/containerd/pkg/cri/util"
+
+	nri "github.com/containerd/nri/v2alpha1/pkg/runtime"
 )
 
 func init() {
@@ -241,7 +243,38 @@ func (c *criService) CreateContainer(ctx context.Context, r *runtime.CreateConta
 		containerd.WithSpec(spec, specOpts...),
 		containerd.WithRuntime(sandboxInfo.Runtime.Name, runtimeOptions),
 		containerd.WithContainerLabels(containerLabels),
-		containerd.WithContainerExtension(containerMetadataExtension, &meta))
+		containerd.WithContainerExtension(containerMetadataExtension, &meta),
+	)
+
+	if c.nri.isEnabled() {
+		opts = append(opts,
+			c.nri.WithNRIAdjustments(
+				nri.WithLabelSetters(
+					func(key, value string) {
+						containerLabels[key] = value
+					},
+					func(key string) {
+						delete(containerLabels, key)
+					},
+				),
+				nri.WithResourceChecker(
+					func(r *runtimespec.LinuxResources) error {
+						if r != nil {
+							if r.Memory != nil {
+								r.Memory.Swap = nil
+							}
+							if c.config.DisableHugetlbController {
+								r.HugepageLimits = nil
+							}
+						}
+						return nil
+					},
+				),
+				c.nri.WithEnsurePropagation(),
+			),
+		)
+	}
+
 	var cntr containerd.Container
 	if cntr, err = c.client.NewContainer(ctx, id, opts...); err != nil {
 		return nil, errors.Wrap(err, "failed to create containerd container")
@@ -252,6 +285,13 @@ func (c *criService) CreateContainer(ctx context.Context, r *runtime.CreateConta
 			defer deferCancel()
 			if err := cntr.Delete(deferCtx, containerd.WithSnapshotCleanup); err != nil {
 				log.G(ctx).WithError(err).Errorf("Failed to delete containerd container %q", id)
+			}
+
+			if c.nri.isEnabled() {
+				err = c.nri.RollbackCreateContainer(ctx, cntr)
+				if err != nil {
+					log.G(ctx).Errorf("NRI failed to roll back container creation: %v", err)
+				}
 			}
 		}
 	}()
@@ -277,6 +317,18 @@ func (c *criService) CreateContainer(ctx context.Context, r *runtime.CreateConta
 	// Add container into container store.
 	if err := c.containerStore.Add(container); err != nil {
 		return nil, errors.Wrapf(err, "failed to add container %q into store", id)
+	}
+
+	if c.nri.isEnabled() {
+		if err = c.nri.ApplyPendingUpdates(ctx, meta.ID); err != nil {
+			log.G(ctx).Errorf("NRI failed to apply pending container updates for %q: %v",
+				meta.ID, err)
+		}
+
+		err = c.nri.PostCreateContainer(ctx, &container)
+		if err != nil {
+			log.G(ctx).Warnf("NRI post-create event failed for container %q: %v", err, id)
+		}
 	}
 
 	containerCreateTimer.WithValues(ociRuntime.Type).UpdateSince(start)
