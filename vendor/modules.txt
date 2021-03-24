@@ -132,6 +132,7 @@ github.com/containerd/nri/v2alpha1/pkg/api
 github.com/containerd/nri/v2alpha1/pkg/log
 github.com/containerd/nri/v2alpha1/pkg/net
 github.com/containerd/nri/v2alpha1/pkg/net/multiplex
+github.com/containerd/nri/v2alpha1/pkg/runtime-tools/generate
 # github.com/containerd/ttrpc v1.1.1-0.20220420014843-944ef4a40df3
 ## explicit; go 1.13
 github.com/containerd/ttrpc
