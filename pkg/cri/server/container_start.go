@@ -160,6 +160,13 @@ func (c *criService) StartContainer(ctx context.Context, r *runtime.StartContain
 		}
 	}
 
+	if c.nri.isEnabled() {
+		err = c.nri.startContainer(ctx, &sandbox, &cntr)
+		if err != nil {
+			log.G(ctx).WithError(err).Errorf("NRI start notification failed")
+		}
+	}
+
 	// Start containerd task.
 	if err := task.Start(ctx); err != nil {
 		return nil, fmt.Errorf("failed to start containerd task %q: %w", id, err)
@@ -176,6 +183,13 @@ func (c *criService) StartContainer(ctx context.Context, r *runtime.StartContain
 
 	// It handles the TaskExit event and update container state after this.
 	c.eventMonitor.startContainerExitMonitor(context.Background(), id, task.Pid(), exitCh)
+
+	if c.nri.isEnabled() {
+		err = c.nri.postStartContainer(ctx, &sandbox, &cntr)
+		if err != nil {
+			log.G(ctx).WithError(err).Errorf("NRI post-start notification failed")
+		}
+	}
 
 	containerStartTimer.WithValues(info.Runtime.Name).UpdateSince(start)
 
