@@ -29,7 +29,7 @@ require (
 	github.com/fsnotify/fsnotify v1.4.9
 	github.com/gogo/googleapis v1.4.0
 	github.com/gogo/protobuf v1.3.2
-	github.com/golang/protobuf v1.4.3
+	github.com/golang/protobuf v1.5.2
 	github.com/google/go-cmp v0.5.4
 	github.com/google/uuid v1.1.2
 	github.com/grpc-ecosystem/go-grpc-prometheus v1.2.0
@@ -50,9 +50,9 @@ require (
 	github.com/tchap/go-patricia v2.2.6+incompatible
 	github.com/urfave/cli v1.22.2
 	go.etcd.io/bbolt v1.3.5
-	golang.org/x/net v0.0.0-20201224014010-6772e930b67b
+	golang.org/x/net v0.0.0-20210224082022-3d97a244fca7
 	golang.org/x/sync v0.0.0-20201207232520-09787c993a3a
-	golang.org/x/sys v0.0.0-20210124154548-22da62e12c0c
+	golang.org/x/sys v0.0.0-20210511113859-b0526f3d8744
 	google.golang.org/grpc v1.33.2
 	gotest.tools/v3 v3.0.3
 	k8s.io/api v0.20.1
@@ -60,9 +60,10 @@ require (
 	k8s.io/apiserver v0.20.1
 	k8s.io/client-go v0.20.1
 	k8s.io/component-base v0.20.1
-	k8s.io/cri-api v0.20.1
+	k8s.io/cri-api v0.21.1
 	k8s.io/klog/v2 v2.4.0
 	k8s.io/utils v0.0.0-20201110183641-67b214c5f920
+	sigs.k8s.io/yaml v1.2.0
 )
 
 replace (
