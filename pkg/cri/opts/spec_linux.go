@@ -248,6 +248,31 @@ func WithRelabeledContainerMounts(mountLabel string) oci.SpecOpts {
 	}
 }
 
+// EnsurePropagation ensures a desired mount propagation.
+func EnsurePropagation(path string, lookupMount func(string) (mount.Info, error), options ...string) error {
+	var (
+		sharedOk bool
+		slaveOk  bool
+	)
+
+	for _, opt := range options {
+		switch opt {
+		case "rshared":
+			sharedOk = true
+		case "rslave":
+			slaveOk = true
+		}
+	}
+
+	if sharedOk && slaveOk {
+		return ensureSharedOrSlave(path, lookupMount)
+	}
+	if sharedOk {
+		return ensureShared(path, lookupMount)
+	}
+	return nil
+}
+
 // Ensure mount point on which path is mounted, is shared.
 func ensureShared(path string, lookupMount func(string) (mount.Info, error)) error {
 	mountInfo, err := lookupMount(path)
