@@ -23,6 +23,7 @@ import (
 
 	"github.com/containerd/containerd/log"
 	"github.com/containerd/containerd/plugin"
+	nri "github.com/containerd/nri/v2alpha1/pkg/runtime"
 	"github.com/pkg/errors"
 )
 
@@ -297,6 +298,8 @@ type PluginConfig struct {
 	// and if it is not overwritten by PodSandboxConfig
 	// Note that currently default is set to disabled but target change it in future together with EnableUnprivilegedPorts
 	EnableUnprivilegedICMP bool `toml:"enable_unprivileged_icmp" json:"enableUnprivilegedICMP"`
+	// NRI contains the NRI-related configuration for the CRI plugin.
+	NRI NRIConfig `toml:"nri" json:"NRI"`
 }
 
 // X509KeyPairStreaming contains the x509 configuration for streaming
@@ -307,7 +310,17 @@ type X509KeyPairStreaming struct {
 	TLSKeyFile string `toml:"tls_key_file" json:"tlsKeyFile"`
 }
 
-// Config contains all configurations for cri server.
+// NRIConfig contains NRI-related configuration for the CRI plugin.
+type NRIConfig struct {
+	Enabled    bool   `toml:"enable" json:"enable"`
+	ConfigPath string `toml:"config_file" json:"configFile"`
+	SocketPath string `toml:"socket_path" json:"socketPath"`
+	PluginPath string `toml:"plugin_dir" json:"pluginDir"`
+
+	config *nri.Config
+}
+
+// string contains all configurations for cri server.
 type Config struct {
 	// PluginConfig is the config for CRI plugin.
 	PluginConfig
@@ -440,5 +453,20 @@ func ValidatePluginConfig(ctx context.Context, c *PluginConfig) error {
 			return errors.Wrap(err, "invalid stream idle timeout")
 		}
 	}
+
+	// Validate for NRI configuration.
+	if c.NRI.Enabled {
+		cfg, err := nri.ReadConfig(c.NRI.ConfigPath)
+		if err != nil {
+			return errors.Wrapf(err, "failed to load NRI configuration %q", c.NRI.ConfigPath)
+		}
+		c.NRI.config = cfg
+	}
+
 	return nil
+}
+
+// Config returns the currently loaded NRI configuration.
+func (c *NRIConfig) Config() *nri.Config {
+	return c.config
 }

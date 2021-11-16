@@ -22,6 +22,7 @@ package config
 import (
 	"github.com/containerd/containerd"
 	"github.com/containerd/containerd/pkg/cri/streaming"
+	nri "github.com/containerd/nri/v2alpha1/pkg/runtime"
 	"github.com/pelletier/go-toml"
 )
 
@@ -103,6 +104,11 @@ func DefaultConfig() PluginConfig {
 		IgnoreImageDefinedVolumes:        false,
 		ImageDecryption: ImageDecryption{
 			KeyModel: KeyModelNode,
+		},
+		NRI: NRIConfig{
+			ConfigPath: nri.DefaultConfigPath,
+			SocketPath: nri.DefaultSocketPath,
+			PluginPath: nri.DefaultPluginPath,
 		},
 	}
 }
