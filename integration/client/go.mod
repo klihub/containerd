@@ -30,6 +30,8 @@ replace (
 	// resolution if newer.
 	github.com/containerd/containerd => ../../
 	github.com/containerd/containerd/api => ../../api
+	// Temporarily divert repo for NRI extensions.
+	github.com/containerd/nri => github.com/klihub/nri v0.0.0-20220113113020-b04840ea5b8f
 
 	// Replace rules below must be kept in sync with the main go.mod file at the
 	// root, because that's the actual version expected by the "containerd/containerd"

@@ -12,6 +12,8 @@ require (
 )
 
 replace (
+	// Temporarily divert repo for NRI extensions.
+	github.com/containerd/nri => github.com/klihub/nri v0.0.0-20220113113020-b04840ea5b8f
 	github.com/gogo/googleapis => github.com/gogo/googleapis v1.3.2
 	// urfave/cli must be <= v1.22.1 due to a regression: https://github.com/urfave/cli/issues/1092
 	github.com/urfave/cli => github.com/urfave/cli v1.22.1
