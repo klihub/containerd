@@ -25,6 +25,8 @@ import (
 
 	"github.com/containerd/containerd/log"
 	"github.com/containerd/containerd/plugin"
+
+	nri "github.com/containerd/nri/v2alpha1/pkg/adaptation"
 )
 
 // Runtime struct to contain the type(ID), engine, and root variables for a default runtime
@@ -331,6 +333,8 @@ type PluginConfig struct {
 	// The string is in the golang duration format, see:
 	//   https://golang.org/pkg/time/#ParseDuration
 	ImagePullProgressTimeout string `toml:"image_pull_progress_timeout" json:"imagePullProgressTimeout"`
+	// NRI contains the NRI-related configuration for the CRI plugin.
+	NRI NRIConfig `toml:"nri" json:"NRI"`
 }
 
 // X509KeyPairStreaming contains the x509 configuration for streaming
@@ -341,7 +345,17 @@ type X509KeyPairStreaming struct {
 	TLSKeyFile string `toml:"tls_key_file" json:"tlsKeyFile"`
 }
 
-// Config contains all configurations for cri server.
+// NRIConfig contains NRI-related configuration for the CRI plugin.
+type NRIConfig struct {
+	Enabled    bool   `toml:"enable" json:"enable"`
+	ConfigPath string `toml:"config_file" json:"configFile"`
+	SocketPath string `toml:"socket_path" json:"socketPath"`
+	PluginPath string `toml:"plugin_dir" json:"pluginDir"`
+
+	config *nri.Config
+}
+
+// string contains all configurations for cri server.
 type Config struct {
 	// PluginConfig is the config for CRI plugin.
 	PluginConfig
@@ -484,5 +498,19 @@ func ValidatePluginConfig(ctx context.Context, c *PluginConfig) error {
 			return fmt.Errorf("invalid image pull progress timeout: %w", err)
 		}
 	}
+	// Validate for NRI configuration.
+	if c.NRI.Enabled {
+		cfg, err := nri.ReadConfig(c.NRI.ConfigPath)
+		if err != nil {
+			return fmt.Errorf("failed to load NRI configuration %q: %w", c.NRI.ConfigPath, err)
+		}
+		c.NRI.config = cfg
+	}
+
 	return nil
+}
+
+// Config returns the currently loaded NRI configuration.
+func (c *NRIConfig) Config() *nri.Config {
+	return c.config
 }
