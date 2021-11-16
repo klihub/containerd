@@ -24,6 +24,7 @@ import (
 
 	"github.com/containerd/containerd"
 	"github.com/containerd/containerd/pkg/cri/streaming"
+	nri "github.com/containerd/nri/v2alpha1/pkg/runtime"
 	"github.com/pelletier/go-toml"
 )
 
@@ -109,5 +110,10 @@ func DefaultConfig() PluginConfig {
 		EnableCDI:                false,
 		CDISpecDirs:              []string{"/etc/cdi", "/var/run/cdi"},
 		ImagePullProgressTimeout: time.Minute.String(),
+		NRI: NRIConfig{
+			ConfigPath: nri.DefaultConfigPath,
+			SocketPath: nri.DefaultSocketPath,
+			PluginPath: nri.DefaultPluginPath,
+		},
 	}
 }
