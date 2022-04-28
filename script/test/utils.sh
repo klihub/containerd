@@ -48,6 +48,20 @@ EOF
 runtime_type = "${CONTAINERD_RUNTIME}"
 EOF
   fi
+  if [ $IS_WINDOWS -eq 0 ]; then
+    NRI_CONFIG_DIR="${CONTAINERD_CONFIG_DIR}/nri"
+    cat >>${config_file} <<EOF
+[plugins."io.containerd.grpc.v1.cri".nri]
+  config_file = "${NRI_CONFIG_DIR}/nri.conf"
+  socket_path = "/var/run/nri-test.sock"
+  plugin_path = "/no/pre-launched/nri/plugins"
+  enable = true
+EOF
+    mkdir -p "${NRI_CONFIG_DIR}"
+    cat >"${NRI_CONFIG_DIR}/nri.conf" <<EOF
+disableConnections: false
+EOF
+  fi
   CONTAINERD_CONFIG_FILE="${config_file}"
 fi
 
