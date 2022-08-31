@@ -6,16 +6,16 @@ require (
 	github.com/Microsoft/hcsshim v0.10.0-rc.1
 	github.com/Microsoft/hcsshim/test v0.0.0-20210408205431-da33ecd607e1
 	github.com/containerd/cgroups v1.0.5-0.20220816231112-7083cd60b721
-	github.com/containerd/containerd v1.6.2 // see replace; the actual version of containerd is replaced with the code at the root of this repository
+	github.com/containerd/containerd v1.6.9 // see replace; the actual version of containerd is replaced with the code at the root of this repository
 	github.com/containerd/go-runc v1.0.0
 	github.com/containerd/ttrpc v1.1.1-0.20220420014843-944ef4a40df3
 	github.com/containerd/typeurl v1.0.3-0.20220422153119-7f6e6d160d67
 	github.com/gogo/protobuf v1.3.2 // indirect
 	github.com/opencontainers/go-digest v1.0.0
 	github.com/opencontainers/image-spec v1.1.0-rc2.0.20221005185240-3a7f492d3f1b
-	github.com/opencontainers/runtime-spec v1.0.3-0.20210326190908-1c3f411f0417
-	github.com/sirupsen/logrus v1.8.1
-	github.com/stretchr/testify v1.8.0
+	github.com/opencontainers/runtime-spec v1.0.3-0.20220825212826-86290f6a00fb
+	github.com/sirupsen/logrus v1.9.0
+	github.com/stretchr/testify v1.8.1
 	golang.org/x/sys v0.0.0-20220915200043-7b5979e65e41
 )
 
@@ -66,4 +66,10 @@ require (
 // IMPORTANT: this replace rule ONLY replaces containerd itself; dependencies
 // in the "require" section above are still taken into account for version
 // resolution if newer.
-replace github.com/containerd/containerd => ../../
+replace (
+	github.com/containerd/containerd => ../../
+
+	// Temporarily divert repo for updated/extended NRI.
+	github.com/containerd/nri => github.com/klihub/nri v0.0.0-20221031171427-66316e8987a4
+	github.com/opencontainers/runtime-tools => github.com/opencontainers/runtime-tools v0.0.0-20221026201742-946c877fa809
+)

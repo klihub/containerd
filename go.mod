@@ -17,6 +17,8 @@ require (
 	github.com/containerd/go-cni v1.1.6
 	github.com/containerd/go-runc v1.0.0
 	github.com/containerd/imgcrypt v1.1.5-0.20220421044638-8ba028dca028
+	// We need an NRI with the updated v2 interface. We use a replace to
+	// divert it until the corresponding PR lands in the NRI repo.
 	github.com/containerd/nri v0.1.0
 	github.com/containerd/ttrpc v1.1.1-0.20220420014843-944ef4a40df3
 	github.com/containerd/typeurl v1.0.3-0.20220422153119-7f6e6d160d67
@@ -46,12 +48,12 @@ require (
 	github.com/opencontainers/go-digest v1.0.0
 	github.com/opencontainers/image-spec v1.1.0-rc2.0.20221005185240-3a7f492d3f1b
 	github.com/opencontainers/runc v1.1.4
-	github.com/opencontainers/runtime-spec v1.0.3-0.20210326190908-1c3f411f0417
+	github.com/opencontainers/runtime-spec v1.0.3-0.20220825212826-86290f6a00fb
 	github.com/opencontainers/selinux v1.10.2
 	github.com/pelletier/go-toml v1.9.3
 	github.com/prometheus/client_golang v1.12.1
-	github.com/sirupsen/logrus v1.8.1
-	github.com/stretchr/testify v1.8.0
+	github.com/sirupsen/logrus v1.9.0
+	github.com/stretchr/testify v1.8.1
 	github.com/tchap/go-patricia/v2 v2.3.1
 	github.com/urfave/cli v1.22.9
 	github.com/vishvananda/netlink v1.1.1-0.20210330154013-f5de75959ad5
@@ -85,7 +87,6 @@ require (
 
 require (
 	github.com/beorn7/perks v1.0.1 // indirect
-	github.com/blang/semver v3.5.1+incompatible // indirect
 	github.com/blang/semver/v4 v4.0.0 // indirect
 	github.com/cenkalti/backoff/v4 v4.1.3 // indirect
 	github.com/cespare/xxhash/v2 v2.1.2 // indirect
@@ -110,7 +111,9 @@ require (
 	github.com/moby/spdystream v0.2.0 // indirect
 	github.com/modern-go/concurrent v0.0.0-20180306012644-bacd9c7ef1dd // indirect
 	github.com/modern-go/reflect2 v1.0.2 // indirect
-	github.com/opencontainers/runtime-tools v0.0.0-20190417131837-cd1349b7c47e // indirect
+	// ATM the runtime-tools commit we need are beyond the latest tag.
+	// We use a replace to handle that until a new version is tagged.
+	github.com/opencontainers/runtime-tools v0.9.0 // indirect
 	github.com/pkg/errors v0.9.1 // indirect
 	github.com/pmezard/go-difflib v1.0.0 // indirect
 	github.com/prometheus/client_model v0.2.0 // indirect
@@ -121,9 +124,6 @@ require (
 	github.com/stefanberger/go-pkcs11uri v0.0.0-20201008174630-78d3cae3a980 // indirect
 	github.com/syndtr/gocapability v0.0.0-20200815063812-42c35b437635 // indirect
 	github.com/vishvananda/netns v0.0.0-20210104183010-2eb08e3e575f // indirect
-	github.com/xeipuuv/gojsonpointer v0.0.0-20180127040702-4e3ac2762d5f // indirect
-	github.com/xeipuuv/gojsonreference v0.0.0-20180127040603-bd5ef7bd5415 // indirect
-	github.com/xeipuuv/gojsonschema v1.2.0 // indirect
 	go.mozilla.org/pkcs7 v0.0.0-20200128120323-432b2356ecb1 // indirect
 	go.opencensus.io v0.23.0 // indirect
 	go.opentelemetry.io/otel/exporters/otlp/internal/retry v1.7.0 // indirect
@@ -142,4 +142,10 @@ require (
 	sigs.k8s.io/json v0.0.0-20211208200746-9f7c6b3444d2 // indirect
 	sigs.k8s.io/structured-merge-diff/v4 v4.2.1 // indirect
 	sigs.k8s.io/yaml v1.3.0 // indirect
+)
+
+replace (
+	// Temporarily divert repo for updated/extended NRI.
+	github.com/containerd/nri => github.com/klihub/nri v0.0.0-20221031171427-66316e8987a4
+	github.com/opencontainers/runtime-tools => github.com/opencontainers/runtime-tools v0.0.0-20221026201742-946c877fa809
 )
