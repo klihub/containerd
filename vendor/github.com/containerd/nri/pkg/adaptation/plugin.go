@@ -36,8 +36,15 @@ import (
 )
 
 const (
-	pluginRegistrationTimeout = 2 * time.Second
-	pluginRequestTimeout      = 2 * time.Second
+	// DefaultPluginRegistrationTimeout is the default timeout for plugin registration.
+	DefaultPluginRegistrationTimeout = 5 * time.Second
+	// DefaultPluginRequestTimeout is the default timeout for plugins to handle a request.
+	DefaultPluginRequestTimeout = 2 * time.Second
+)
+
+var (
+	pluginRegistrationTimeout = DefaultPluginRegistrationTimeout
+	pluginRequestTimeout      = DefaultPluginRequestTimeout
 )
 
 type plugin struct {
@@ -57,6 +64,16 @@ type plugin struct {
 	regC   chan error
 	closeC chan struct{}
 	r      *Adaptation
+}
+
+// SetPluginRegistrationTimeout sets the timeout for plugin registration.
+func SetPluginRegistrationTimeout(t time.Duration) {
+	pluginRegistrationTimeout = t
+}
+
+// SetPluginRequestTimeout sets the timeout for plugins to handle a request.
+func SetPluginRequestTimeout(t time.Duration) {
+	pluginRequestTimeout = t
 }
 
 // Launch a pre-installed plugin with a pre-connected socketpair.
@@ -123,6 +140,27 @@ func (r *Adaptation) newExternalPlugin(conn stdnet.Conn) (p *plugin, retErr erro
 	}
 
 	return p, nil
+}
+
+// Get plugin-specific configuration for an NRI-launched plugin.
+func (r *Adaptation) getPluginConfig(id, base string) (string, error) {
+	name := id + "-" + base
+	dropIns := []string{
+		filepath.Join(r.dropinPath, name+".conf"),
+		filepath.Join(r.dropinPath, base+".conf"),
+	}
+
+	for _, path := range dropIns {
+		buf, err := os.ReadFile(path)
+		if err == nil {
+			return string(buf), nil
+		}
+		if !os.IsNotExist(err) {
+			return "", fmt.Errorf("failed to read configuration for plugin %q: %w", name, err)
+		}
+	}
+
+	return "", nil
 }
 
 // Check if the plugin is external (was not launched by us).
