@@ -17,6 +17,8 @@
 package nri
 
 import (
+	"strings"
+
 	"context"
 	"fmt"
 	"path"
@@ -101,6 +103,26 @@ type local struct {
 	state map[string]State
 }
 
+func (l *local) Lock(caller ...string) {
+	if len(caller) > 0 {
+		logrus.Infof("locking NRI for %s", strings.Join(caller, " "))
+		l.Mutex.Lock()
+		logrus.Infof("locked NRI for %s", strings.Join(caller, " "))
+		return
+	}
+	l.Mutex.Lock()
+}
+
+func (l *local) Unlock(caller ...string) {
+	if len(caller) > 0 {
+		logrus.Infof("unlocking NRI for %s", strings.Join(caller, " "))
+		l.Mutex.Unlock()
+		logrus.Infof("unlocked NRI for %s", strings.Join(caller, " "))
+		return
+	}
+	l.Mutex.Unlock()
+}
+
 var _ API = &local{}
 
 // New creates an instance of the NRI interface with the given configuration.
@@ -171,8 +193,8 @@ func (l *local) RunPodSandbox(ctx context.Context, pod PodSandbox) error {
 		return nil
 	}
 
-	l.Lock()
-	defer l.Unlock()
+	l.Lock("RunPodSandbox", pod.GetID())
+	defer l.Unlock("RunPodSandbox", pod.GetID())
 
 	request := &nri.RunPodSandboxRequest{
 		Pod: podSandboxToNRI(pod),
@@ -209,8 +231,8 @@ func (l *local) RemovePodSandbox(ctx context.Context, pod PodSandbox) error {
 		return nil
 	}
 
-	l.Lock()
-	defer l.Unlock()
+	l.Lock("RemovePodSandbox", pod.GetID())
+	defer l.Unlock("RemovePodSandbox", pod.GetID())
 
 	if !l.needsRemoval(pod.GetID()) {
 		return nil
@@ -230,8 +252,8 @@ func (l *local) CreateContainer(ctx context.Context, pod PodSandbox, ctr Contain
 		return nil, nil
 	}
 
-	l.Lock()
-	defer l.Unlock()
+	l.Lock("CreateContainer", ctr.GetID())
+	defer l.Unlock("CreateContainer", ctr.GetID())
 
 	request := &nri.CreateContainerRequest{
 		Pod:       podSandboxToNRI(pod),
@@ -263,8 +285,8 @@ func (l *local) PostCreateContainer(ctx context.Context, pod PodSandbox, ctr Con
 		return nil
 	}
 
-	l.Lock()
-	defer l.Unlock()
+	l.Lock("PostCreateContainer", ctr.GetID())
+	defer l.Unlock("PostCreateContainer", ctr.GetID())
 
 	request := &nri.PostCreateContainerRequest{
 		Pod:       podSandboxToNRI(pod),
@@ -279,8 +301,8 @@ func (l *local) StartContainer(ctx context.Context, pod PodSandbox, ctr Containe
 		return nil
 	}
 
-	l.Lock()
-	defer l.Unlock()
+	l.Lock("StartContainer", ctr.GetID())
+	defer l.Unlock("StartContainer", ctr.GetID())
 
 	request := &nri.StartContainerRequest{
 		Pod:       podSandboxToNRI(pod),
@@ -298,8 +320,8 @@ func (l *local) PostStartContainer(ctx context.Context, pod PodSandbox, ctr Cont
 		return nil
 	}
 
-	l.Lock()
-	defer l.Unlock()
+	l.Lock("PostStartContainer", ctr.GetID())
+	defer l.Unlock("PostStartContainer", ctr.GetID())
 
 	request := &nri.PostStartContainerRequest{
 		Pod:       podSandboxToNRI(pod),
@@ -314,8 +336,8 @@ func (l *local) UpdateContainer(ctx context.Context, pod PodSandbox, ctr Contain
 		return nil, nil
 	}
 
-	l.Lock()
-	defer l.Unlock()
+	l.Lock("UpdateContainer", ctr.GetID())
+	defer l.Unlock("UpdateContainer", ctr.GetID())
 
 	request := &nri.UpdateContainerRequest{
 		Pod:            podSandboxToNRI(pod),
@@ -355,8 +377,8 @@ func (l *local) PostUpdateContainer(ctx context.Context, pod PodSandbox, ctr Con
 		return nil
 	}
 
-	l.Lock()
-	defer l.Unlock()
+	l.Lock("PostUpdateContainer", ctr.GetID())
+	defer l.Unlock("PostUpdateContainer", ctr.GetID())
 
 	request := &nri.PostUpdateContainerRequest{
 		Pod:       podSandboxToNRI(pod),
@@ -371,16 +393,16 @@ func (l *local) StopContainer(ctx context.Context, pod PodSandbox, ctr Container
 		return nil
 	}
 
-	l.Lock()
-	defer l.Unlock()
+	l.Lock("StopContainer", ctr.GetID())
+	defer l.Unlock("StopContainer", ctr.GetID())
 
 	return l.stopContainer(ctx, pod, ctr)
 }
 
 func (l *local) NotifyContainerExit(ctx context.Context, pod PodSandbox, ctr Container) {
 	go func() {
-		l.Lock()
-		defer l.Unlock()
+		l.Lock("NotifyContainerExit", ctr.GetID())
+		defer l.Unlock("NotifyContainerExit", ctr.GetID())
 		l.stopContainer(ctx, pod, ctr)
 	}()
 }
@@ -397,17 +419,21 @@ func (l *local) stopContainer(ctx context.Context, pod PodSandbox, ctr Container
 		Container: containerToNRI(ctr),
 	}
 
+	log.G(ctx).Infof("NRI stopContainer invoking plugins for %s", ctr.GetID())
+
 	response, err := l.nri.StopContainer(ctx, request)
 	l.setState(request.Container.Id, Stopped)
 	if err != nil {
 		return err
 	}
 
+	log.G(ctx).Infof("NRI start stopContainer/applyUpdates for %s", ctr.GetID())
 	_, err = l.applyUpdates(ctx, response.Update)
 	if err != nil {
 		// TODO(klihub): we ignore post-stop update failures for now
 		log.G(ctx).WithError(err).Warnf("post-stop update failed")
 	}
+	log.G(ctx).Infof("NRI done stopContainer/applyUpdates for %s", ctr.GetID())
 
 	return nil
 }
@@ -417,8 +443,8 @@ func (l *local) RemoveContainer(ctx context.Context, pod PodSandbox, ctr Contain
 		return nil
 	}
 
-	l.Lock()
-	defer l.Unlock()
+	l.Lock("RemoveContainer", ctr.GetID())
+	defer l.Unlock("RemoveContainer", ctr.GetID())
 
 	if !l.needsRemoval(ctr.GetID()) {
 		return nil
