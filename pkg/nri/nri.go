@@ -101,26 +101,72 @@ type local struct {
 	nri *nri.Adaptation
 
 	state map[string]State
+
+	lockCh chan chan struct{}
+	freeCh chan struct{}
+	stopCh chan struct{}
+}
+
+func (l *local) setupLocking() {
+	l.lockCh = make(chan chan struct{})
+	l.freeCh = make(chan struct{})
+	l.stopCh = make(chan struct{})
+
+	go l.arbitrateLock()
 }
 
 func (l *local) Lock(caller ...string) {
+	//l.Mutex.Lock()
+
 	if len(caller) > 0 {
 		logrus.Infof("locking NRI for %s", strings.Join(caller, " "))
-		l.Mutex.Lock()
-		logrus.Infof("locked NRI for %s", strings.Join(caller, " "))
-		return
 	}
-	l.Mutex.Lock()
+	ch := make(chan struct{})
+	l.lockCh <- ch
+	_ = <- ch
+	if len(caller) > 0 {
+		logrus.Infof("locked NRI for %s", strings.Join(caller, " "))
+	}
 }
 
 func (l *local) Unlock(caller ...string) {
+	//l.Mutex.Unlock()
+
 	if len(caller) > 0 {
 		logrus.Infof("unlocking NRI for %s", strings.Join(caller, " "))
-		l.Mutex.Unlock()
-		logrus.Infof("unlocked NRI for %s", strings.Join(caller, " "))
-		return
 	}
-	l.Mutex.Unlock()
+	l.freeCh <- struct{}{}
+	if len(caller) > 0 {
+		logrus.Infof("unlocked NRI for %s", strings.Join(caller, " "))
+	}
+}
+
+func (l *local) arbitrateLock() {
+	lockers := []chan struct{}{}
+	locked := false
+
+	for {
+		select {
+		case ch := <- l.lockCh:
+			if locked {
+				lockers = append(lockers, ch)
+				continue
+			}
+			locked = true
+			close(ch)
+		case _ = <- l.freeCh:
+			if len(lockers) == 0 {
+				locked = false
+				continue
+			}
+
+			ch := lockers[0]
+			lockers = lockers[1:]
+			close(ch)
+		case _ = <- l.stopCh:
+			return
+		}
+	}
 }
 
 var _ API = &local{}
@@ -153,6 +199,8 @@ func New(cfg *Config) (API, error) {
 	}
 
 	l.state = make(map[string]State)
+
+	l.setupLocking()
 
 	logrus.Info("created NRI interface")
 
