@@ -209,8 +209,8 @@ func (l *local) StopPodSandbox(ctx context.Context, pod PodSandbox) error {
 		return nil
 	}
 
-	l.Lock()
-	defer l.Unlock()
+	l.Lock("RunPodSandbox", pod.GetID())
+	defer l.Unlock("RunPodSandbox", pod.GetID())
 
 	if !l.needsStopping(pod.GetID()) {
 		return nil
