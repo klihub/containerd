@@ -115,7 +115,6 @@ func (l *local) Lock(caller ...string) {
 
 func (l *local) Unlock(caller ...string) {
 	if len(caller) > 0 {
-		logrus.Infof("unlocking NRI for %s", strings.Join(caller, " "))
 		l.Mutex.Unlock()
 		logrus.Infof("unlocked NRI for %s", strings.Join(caller, " "))
 		return
