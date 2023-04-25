@@ -130,6 +130,7 @@ func (t *domainTable) updateContainers(ctx context.Context, updates []*nri.Conta
 		}
 
 		domain := d.GetName()
+		logrus.Infof("applying updates to container %s", u.ContainerId)
 		err := d.UpdateContainer(namespaces.WithNamespace(ctx, domain), u)
 		if err != nil {
 			log.G(ctx).WithError(err).Errorf("NRI update of %s container %s failed",
