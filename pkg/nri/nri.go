@@ -265,16 +265,20 @@ func (l *local) CreateContainer(ctx context.Context, pod PodSandbox, ctr Contain
 		return nil, err
 	}
 
-	_, err = l.evictContainers(ctx, response.Evict)
-	if err != nil {
-		// TODO(klihub): we ignore pre-create eviction failures for now
-		log.G(ctx).WithError(err).Warnf("pre-create eviction failed")
-	}
+	go func() {
+		_, err = l.evictContainers(ctx, response.Evict)
+		if err != nil {
+			// TODO(klihub): we ignore pre-create eviction failures for now
+			log.G(ctx).WithError(err).Warnf("pre-create eviction failed")
+		}
+	}()
 
-	if _, err := l.applyUpdates(ctx, response.Update); err != nil {
-		// TODO(klihub): we ignore pre-create update failures for now
-		log.G(ctx).WithError(err).Warnf("pre-create update failed")
-	}
+	go func(){
+		if _, err := l.applyUpdates(ctx, response.Update); err != nil {
+			// TODO(klihub): we ignore pre-create update failures for now
+			log.G(ctx).WithError(err).Warnf("pre-create update failed")
+		}
+	}()
 
 	return response.Adjust, nil
 }
@@ -349,24 +353,28 @@ func (l *local) UpdateContainer(ctx context.Context, pod PodSandbox, ctr Contain
 		return nil, err
 	}
 
-	_, err = l.evictContainers(ctx, response.Evict)
-	if err != nil {
-		// TODO(klihub): we ignore pre-update eviction failures for now
-		log.G(ctx).WithError(err).Warnf("pre-update eviction failed")
-	}
+	go func(){
+		_, err = l.evictContainers(ctx, response.Evict)
+		if err != nil {
+			// TODO(klihub): we ignore pre-update eviction failures for now
+			log.G(ctx).WithError(err).Warnf("pre-update eviction failed")
+		}
+	}()
 
 	cnt := len(response.Update)
 	if cnt == 0 {
 		return nil, nil
 	}
 
-	if cnt > 1 {
-		_, err = l.applyUpdates(ctx, response.Update[0:cnt-1])
-		if err != nil {
-			// TODO(klihub): we ignore pre-update update failures for now
-			log.G(ctx).WithError(err).Warnf("pre-update update failed")
+	go func() {
+		if cnt > 1 {
+			_, err = l.applyUpdates(ctx, response.Update[0:cnt-1])
+			if err != nil {
+				// TODO(klihub): we ignore pre-update update failures for now
+				log.G(ctx).WithError(err).Warnf("pre-update update failed")
+			}
 		}
-	}
+	}()
 
 	return response.Update[cnt-1].GetLinux().GetResources(), nil
 }
@@ -426,13 +434,15 @@ func (l *local) stopContainer(ctx context.Context, pod PodSandbox, ctr Container
 		return err
 	}
 
-	log.G(ctx).Infof("NRI start stopContainer/applyUpdates for %s", ctr.GetID())
-	_, err = l.applyUpdates(ctx, response.Update)
-	if err != nil {
-		// TODO(klihub): we ignore post-stop update failures for now
-		log.G(ctx).WithError(err).Warnf("post-stop update failed")
-	}
-	log.G(ctx).Infof("NRI done stopContainer/applyUpdates for %s", ctr.GetID())
+	go func() {
+		log.G(ctx).Infof("NRI start stopContainer/applyUpdates for %s", ctr.GetID())
+		_, err = l.applyUpdates(ctx, response.Update)
+		if err != nil {
+			// TODO(klihub): we ignore post-stop update failures for now
+			log.G(ctx).WithError(err).Warnf("post-stop update failed")
+		}
+		log.G(ctx).Infof("NRI done stopContainer/applyUpdates for %s", ctr.GetID())
+	}()
 
 	return nil
 }
