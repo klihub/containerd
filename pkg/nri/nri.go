@@ -101,6 +101,9 @@ type local struct {
 	nri *nri.Adaptation
 
 	state map[string]State
+
+	updateC chan []*nri.ContainerUpdate
+	stopC   chan struct{}
 }
 
 func (l *local) Lock(caller ...string) {
@@ -120,6 +123,33 @@ func (l *local) Unlock(caller ...string) {
 		return
 	}
 	l.Mutex.Unlock()
+}
+
+func (l *local) setupUpdater() {
+	l.updateC = make(chan []*nri.ContainerUpdate, 32)
+	l.stopC = make(chan struct{})
+
+	go l.asyncUpdater()
+}
+
+func (l *local) asyncUpdater() {
+	for {
+		ctx := context.Background()
+		select {
+		case _ = <- l.stopC:
+			return
+		case updates, ok := <- l.updateC:
+			if ok {
+				if _, err := l.applyUpdates(ctx, updates); err != nil {
+					log.G(ctx).WithError(err).Warnf("container update failed")
+				}
+			}
+		}
+	}
+}
+
+func (l *local) asyncUpdate(updates []*nri.ContainerUpdate) {
+	l.updateC <- updates
 }
 
 var _ API = &local{}
@@ -153,6 +183,8 @@ func New(cfg *Config) (API, error) {
 
 	l.state = make(map[string]State)
 
+	l.setupUpdater()
+
 	logrus.Info("created NRI interface")
 
 	return l, nil
@@ -183,6 +215,7 @@ func (l *local) Stop() {
 	l.Lock()
 	defer l.Unlock()
 
+	close(l.stopC)
 	l.nri.Stop()
 	l.nri = nil
 }
@@ -273,12 +306,7 @@ func (l *local) CreateContainer(ctx context.Context, pod PodSandbox, ctr Contain
 		}
 	}()
 
-	go func(){
-		if _, err := l.applyUpdates(ctx, response.Update); err != nil {
-			// TODO(klihub): we ignore pre-create update failures for now
-			log.G(ctx).WithError(err).Warnf("pre-create update failed")
-		}
-	}()
+	l.asyncUpdate(response.Update)
 
 	return response.Adjust, nil
 }
@@ -366,15 +394,9 @@ func (l *local) UpdateContainer(ctx context.Context, pod PodSandbox, ctr Contain
 		return nil, nil
 	}
 
-	go func() {
-		if cnt > 1 {
-			_, err = l.applyUpdates(ctx, response.Update[0:cnt-1])
-			if err != nil {
-				// TODO(klihub): we ignore pre-update update failures for now
-				log.G(ctx).WithError(err).Warnf("pre-update update failed")
-			}
-		}
-	}()
+	if cnt > 1 {
+		l.asyncUpdate(response.Update[0:cnt-1])
+	}
 
 	return response.Update[cnt-1].GetLinux().GetResources(), nil
 }
@@ -434,15 +456,7 @@ func (l *local) stopContainer(ctx context.Context, pod PodSandbox, ctr Container
 		return err
 	}
 
-	go func() {
-		log.G(ctx).Infof("NRI start stopContainer/applyUpdates for %s", ctr.GetID())
-		_, err = l.applyUpdates(ctx, response.Update)
-		if err != nil {
-			// TODO(klihub): we ignore post-stop update failures for now
-			log.G(ctx).WithError(err).Warnf("post-stop update failed")
-		}
-		log.G(ctx).Infof("NRI done stopContainer/applyUpdates for %s", ctr.GetID())
-	}()
+	l.asyncUpdate(response.Update)
 
 	return nil
 }
