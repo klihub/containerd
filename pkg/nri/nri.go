@@ -18,6 +18,7 @@ package nri
 
 import (
 	"strings"
+	"time"
 
 	"context"
 	"fmt"
@@ -430,6 +431,7 @@ func (l *local) StopContainer(ctx context.Context, pod PodSandbox, ctr Container
 
 func (l *local) NotifyContainerExit(ctx context.Context, pod PodSandbox, ctr Container) {
 	go func() {
+		time.Sleep(1*time.Second)
 		l.Lock("NotifyContainerExit", ctr.GetID())
 		defer l.Unlock("NotifyContainerExit", ctr.GetID())
 		l.stopContainer(ctx, pod, ctr)
