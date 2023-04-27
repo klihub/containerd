@@ -103,8 +103,14 @@ type local struct {
 
 	state map[string]State
 
+    exitC   chan *exitEvent
 	updateC chan []*nri.ContainerUpdate
 	stopC   chan struct{}
+}
+
+type exitEvent struct {
+	pod PodSandbox
+	ctr Container
 }
 
 func (l *local) Lock(caller ...string) {
@@ -153,6 +159,39 @@ func (l *local) asyncUpdate(updates []*nri.ContainerUpdate) {
 	l.updateC <- updates
 }
 
+func (l *local) setupExitHandler() {
+	l.exitC = make(chan *exitEvent, 32)
+
+	go l.asyncExitHandler()
+}
+
+func (l *local) asyncExitHandler() {
+	for {
+		ctx := context.Background()
+		select {
+		case _ = <- l.stopC:
+			return
+		case e, ok := <- l.exitC:
+			if ok {
+				l.Lock("ExitEvent", e.ctr.GetID())
+				l.stopContainer(ctx, e.pod, e.ctr)
+				l.Unlock("ExitEvent", e.ctr.GetID())
+			}
+		}
+	}
+}
+
+func (l *local) asyncExit(pod PodSandbox, ctr Container) {
+	go func() {
+		time.Sleep(1 * time.Second)
+		l.exitC <- &exitEvent{
+			pod: pod,
+			ctr: ctr,
+		}
+	}()
+}
+
+
 var _ API = &local{}
 
 // New creates an instance of the NRI interface with the given configuration.
@@ -185,6 +224,7 @@ func New(cfg *Config) (API, error) {
 	l.state = make(map[string]State)
 
 	l.setupUpdater()
+	l.setupExitHandler()
 
 	logrus.Info("created NRI interface")
 
@@ -430,12 +470,13 @@ func (l *local) StopContainer(ctx context.Context, pod PodSandbox, ctr Container
 }
 
 func (l *local) NotifyContainerExit(ctx context.Context, pod PodSandbox, ctr Container) {
-	go func() {
+	/*go func() {
 		time.Sleep(1*time.Second)
 		l.Lock("NotifyContainerExit", ctr.GetID())
 		defer l.Unlock("NotifyContainerExit", ctr.GetID())
 		l.stopContainer(ctx, pod, ctr)
-	}()
+	}()*/
+	l.asyncExit(pod, ctr)
 }
 
 func (l *local) stopContainer(ctx context.Context, pod PodSandbox, ctr Container) error {
