@@ -146,6 +146,46 @@ func TestNriPluginSynchronization(t *testing.T) {
 	}
 }
 
+// Test NRI runtime/plugin state synchronization with pod creation race.
+func TestNriPluginSynchronizationRace(t *testing.T) {
+	skipNriTestIfNecessary(t)
+
+	t.Log("Test racy NRI plugin synchronization.")
+
+	var (
+		tc = &nriTest{
+			t: t,
+		}
+		podCount = 15
+	)
+
+	tc.setup()
+	wg := sync.WaitGroup{}
+
+	for i := 0; i < podCount; i++ {
+		wg.Add(1)
+		func() {
+			_ = tc.runPod(fmt.Sprintf("pod%d", i))
+			wg.Done()
+		}()
+	}
+
+	plugin := &mockPlugin{}
+	tc.connectNewPlugin(plugin)
+
+	for _, plugin := range tc.plugins {
+		err := plugin.Wait(PluginSynchronized, time.After(pluginSyncTimeout))
+		require.NoError(t, err, "plugin sync wait")
+	}
+
+	wg.Wait()
+
+	for _, id := range tc.pods {
+		_, ok := plugin.pods[id]
+		require.True(tc.t, ok, "runtime sync of pod "+id)
+	}
+}
+
 // Test mount injection into containers by NRI plugins.
 func TestNriMountInjection(t *testing.T) {
 	skipNriTestIfNecessary(t)
