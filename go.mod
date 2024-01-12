@@ -18,8 +18,9 @@ require (
 	github.com/containerd/go-runc v1.0.0
 	github.com/containerd/imgcrypt v1.1.7
 	github.com/containerd/log v0.1.0
-	github.com/containerd/nri v0.4.0
-	github.com/containerd/ttrpc v1.2.2
+	github.com/containerd/nri v0.5.1-0.20240201232815-e6fb9fe24a3e
+	github.com/containerd/otelttrpc v0.0.0-20240115065405-5909713624e1
+	github.com/containerd/ttrpc v1.2.3-0.20231030150553-baadfd8e7956
 	github.com/containerd/typeurl/v2 v2.1.1
 	github.com/containerd/zfs v1.1.0
 	github.com/containernetworking/cni v1.1.2
@@ -69,7 +70,7 @@ require (
 	golang.org/x/sync v0.3.0
 	golang.org/x/sys v0.13.0
 	google.golang.org/genproto v0.0.0-20230711160842-782d3b101e98
-	google.golang.org/genproto/googleapis/rpc v0.0.0-20230711160842-782d3b101e98
+	google.golang.org/genproto/googleapis/rpc v0.0.0-20230731190214-cbb8c96f2d6d
 	google.golang.org/grpc v1.58.3
 	google.golang.org/protobuf v1.31.0
 	k8s.io/api v0.26.2
@@ -104,7 +105,7 @@ require (
 	github.com/grpc-ecosystem/grpc-gateway/v2 v2.16.0 // indirect
 	github.com/hashicorp/errwrap v1.1.0 // indirect
 	github.com/json-iterator/go v1.1.12 // indirect
-	github.com/klauspost/cpuid/v2 v2.0.4 // indirect
+	github.com/klauspost/cpuid/v2 v2.0.9 // indirect
 	github.com/matttproud/golang_protobuf_extensions v1.0.4 // indirect
 	github.com/miekg/pkcs11 v1.1.1 // indirect
 	github.com/mistifyio/go-zfs/v3 v3.0.1 // indirect
@@ -131,7 +132,7 @@ require (
 	golang.org/x/oauth2 v0.10.0 // indirect
 	golang.org/x/term v0.13.0 // indirect
 	golang.org/x/text v0.13.0 // indirect
-	golang.org/x/time v0.0.0-20220210224613-90d013bbcef8 // indirect
+	golang.org/x/time v0.3.0 // indirect
 	golang.org/x/tools v0.10.0 // indirect
 	google.golang.org/appengine v1.6.7 // indirect
 	google.golang.org/genproto/googleapis/api v0.0.0-20230711160842-782d3b101e98 // indirect
