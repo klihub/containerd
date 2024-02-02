@@ -19,6 +19,9 @@ package nri
 import (
 	"time"
 
+	"github.com/containerd/otelttrpc"
+	"github.com/containerd/ttrpc"
+
 	nri "github.com/containerd/nri/pkg/adaptation"
 )
 
@@ -38,6 +41,8 @@ type Config struct {
 	PluginRequestTimeout time.Duration `toml:"plugin_request_timeout" json:"pluginRequestTimeout"`
 	// DisableConnections disables connections from externally launched plugins.
 	DisableConnections bool `toml:"disable_connections" json:"disableConnections"`
+	// EnableTracing enables OpenTelemetry tracing instrumentation for NRI ttrpc calls.
+	EnableTracing bool `toml:"enable_tracing" json:"enableTracing"`
 }
 
 // DefaultConfig returns the default configuration.
@@ -50,6 +55,7 @@ func DefaultConfig() *Config {
 
 		PluginRegistrationTimeout: nri.DefaultPluginRegistrationTimeout,
 		PluginRequestTimeout:      nri.DefaultPluginRequestTimeout,
+		EnableTracing:             true,
 	}
 }
 
@@ -67,6 +73,22 @@ func (c *Config) toOptions() []nri.Option {
 	}
 	if c.DisableConnections {
 		opts = append(opts, nri.WithDisabledExternalConnections())
+	}
+	if c.EnableTracing {
+		opts = append(opts,
+			nri.WithTTRPCOptions(
+				[]ttrpc.ClientOpts{
+					ttrpc.WithUnaryClientInterceptor(
+						otelttrpc.UnaryClientInterceptor(),
+					),
+				},
+				[]ttrpc.ServerOpt{
+					ttrpc.WithUnaryServerInterceptor(
+						otelttrpc.UnaryServerInterceptor(),
+					),
+				},
+			),
+		)
 	}
 	return opts
 }
