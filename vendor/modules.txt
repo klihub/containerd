@@ -1,5 +1,3 @@
-# cloud.google.com/go/compute/metadata v0.2.3
-## explicit; go 1.19
 # dario.cat/mergo v1.0.0
 ## explicit; go 1.13
 dario.cat/mergo
@@ -131,7 +129,7 @@ github.com/containerd/go-runc
 ## explicit; go 1.20
 github.com/containerd/log
 github.com/containerd/log/logtest
-# github.com/containerd/nri v0.5.0
+# github.com/containerd/nri v0.5.1-0.20240201232815-e6fb9fe24a3e
 ## explicit; go 1.19
 github.com/containerd/nri
 github.com/containerd/nri/pkg/adaptation
@@ -142,6 +140,10 @@ github.com/containerd/nri/pkg/net/multiplex
 github.com/containerd/nri/pkg/runtime-tools/generate
 github.com/containerd/nri/pkg/stub
 github.com/containerd/nri/types/v1
+# github.com/containerd/otelttrpc v0.0.0-20240115065405-5909713624e1
+## explicit; go 1.13
+github.com/containerd/otelttrpc
+github.com/containerd/otelttrpc/internal
 # github.com/containerd/platforms v0.1.1
 ## explicit; go 1.20
 github.com/containerd/platforms
@@ -150,8 +152,8 @@ github.com/containerd/platforms
 github.com/containerd/plugin
 github.com/containerd/plugin/dynamic
 github.com/containerd/plugin/registry
-# github.com/containerd/ttrpc v1.2.2
-## explicit; go 1.13
+# github.com/containerd/ttrpc v1.2.3-0.20231030150553-baadfd8e7956
+## explicit; go 1.19
 github.com/containerd/ttrpc
 # github.com/containerd/typeurl/v2 v2.1.1
 ## explicit; go 1.13

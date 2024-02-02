@@ -17,10 +17,11 @@ require (
 	github.com/containerd/go-cni v1.1.9
 	github.com/containerd/go-runc v1.1.0
 	github.com/containerd/log v0.1.0
-	github.com/containerd/nri v0.5.0
+	github.com/containerd/nri v0.5.1-0.20240201232815-e6fb9fe24a3e
+	github.com/containerd/otelttrpc v0.0.0-20240115065405-5909713624e1
 	github.com/containerd/platforms v0.1.1
 	github.com/containerd/plugin v0.1.0
-	github.com/containerd/ttrpc v1.2.2
+	github.com/containerd/ttrpc v1.2.3-0.20231030150553-baadfd8e7956
 	github.com/containerd/typeurl/v2 v2.1.1
 	github.com/containernetworking/cni v1.1.2
 	github.com/containernetworking/plugins v1.4.0
@@ -82,7 +83,6 @@ require (
 )
 
 require (
-	cloud.google.com/go/compute/metadata v0.2.3 // indirect
 	github.com/beorn7/perks v1.0.1 // indirect
 	github.com/cenkalti/backoff/v4 v4.2.1 // indirect
 	github.com/cespare/xxhash/v2 v2.2.0 // indirect
