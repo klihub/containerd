@@ -291,6 +291,9 @@ func (c *criService) CreateContainer(ctx context.Context, r *runtime.CreateConta
 		}
 	}()
 
+	c.nri.BlockPluginSync()
+	nriSyncBlocked := true
+
 	var cntr containerd.Container
 	if cntr, err = c.client.NewContainer(ctx, id, opts...); err != nil {
 		return nil, fmt.Errorf("failed to create containerd container: %w", err)
@@ -302,6 +305,9 @@ func (c *criService) CreateContainer(ctx context.Context, r *runtime.CreateConta
 			if err := cntr.Delete(deferCtx, containerd.WithSnapshotCleanup); err != nil {
 				log.G(ctx).WithError(err).Errorf("Failed to delete containerd container %q", id)
 			}
+		}
+		if nriSyncBlocked {
+			c.nri.AllowPluginSync()
 		}
 	}()
 
@@ -328,6 +334,9 @@ func (c *criService) CreateContainer(ctx context.Context, r *runtime.CreateConta
 	if err := c.containerStore.Add(container); err != nil {
 		return nil, fmt.Errorf("failed to add container %q into store: %w", id, err)
 	}
+
+	c.nri.AllowPluginSync()
+	nriSyncBlocked = false
 
 	c.generateAndSendContainerEvent(ctx, id, sandboxID, runtime.ContainerEventType_CONTAINER_CREATED_EVENT)
 

@@ -363,8 +363,17 @@ func (c *criService) RunPodSandbox(ctx context.Context, r *runtime.RunPodSandbox
 
 	sandbox.ProcessLabel = labels["selinux_label"]
 
+	c.nri.BlockPluginSync()
+	nriSyncBlocked := true
+	defer func() {
+		if nriSyncBlocked {
+			c.nri.AllowPluginSync()
+		}
+	}()
+
 	err = c.nri.RunPodSandbox(ctx, &sandbox)
 	if err != nil {
+		c.nri.AllowPluginSync()
 		return nil, fmt.Errorf("NRI RunPodSandbox failed: %w", err)
 	}
 
@@ -390,6 +399,9 @@ func (c *criService) RunPodSandbox(ctx context.Context, r *runtime.RunPodSandbox
 	if err := c.sandboxStore.Add(sandbox); err != nil {
 		return nil, fmt.Errorf("failed to add sandbox %+v into store: %w", sandbox, err)
 	}
+
+	c.nri.AllowPluginSync()
+	nriSyncBlocked = false
 
 	// Send CONTAINER_CREATED event with both ContainerId and SandboxId equal to SandboxId.
 	// Note that this has to be done after sandboxStore.Add() because we need to get
