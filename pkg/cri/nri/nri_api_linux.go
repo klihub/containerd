@@ -36,6 +36,7 @@ import (
 	runtimespec "github.com/opencontainers/runtime-spec/specs-go"
 	"github.com/opencontainers/runtime-tools/generate"
 	cri "k8s.io/cri-api/pkg/apis/runtime/v1"
+	"tags.cncf.io/container-device-interface/pkg/cdi"
 
 	"github.com/containerd/containerd/pkg/nri"
 	"github.com/containerd/nri/pkg/api"
@@ -317,6 +318,34 @@ func (a *API) WithContainerAdjustment() containerd.NewContainerOpts {
 		},
 	)
 
+	cdiInjectorOpt := nrigen.WithCDIDeviceInjector(
+		func(s *specs.Spec, devices []string) error {
+			if len(devices) == 0 {
+				return nil
+			}
+
+			if !a.cri.Config().EnableCDI {
+				log.L.Warnf("CDI device support disabled, omitting CDI devices %v")
+				return nil
+			}
+
+			if err := cdi.Refresh(); err != nil {
+				// We don't consider registry refresh failure a fatal error.
+				// For instance, a dynamically generated invalid CDI Spec file for
+				// any particular vendor shouldn't prevent injection of devices of
+				// different vendors. CDI itself knows better and it will fail the
+				// injection if necessary.
+				log.L.WithError(err).Warnf("CDI registry refresh failed")
+			}
+
+			if _, err := cdi.InjectDevices(s, devices...); err != nil {
+				return fmt.Errorf("CDI device injection failed: %w", err)
+			}
+
+			return nil
+		},
+	)
+
 	return func(ctx context.Context, _ *containerd.Client, c *containers.Container) error {
 		spec := &specs.Spec{}
 		if err := json.Unmarshal(c.Spec.GetValue(), spec); err != nil {
@@ -328,8 +357,15 @@ func (a *API) WithContainerAdjustment() containerd.NewContainerOpts {
 			return fmt.Errorf("failed to get NRI adjustment for container: %w", err)
 		}
 
+		opts := []nrigen.GeneratorOption{
+			resourceCheckOpt,
+			rdtResolveOpt,
+			blkioResolveOpt,
+			cdiInjectorOpt,
+		}
+
 		sgen := generate.Generator{Config: spec}
-		ngen := nrigen.SpecGenerator(&sgen, resourceCheckOpt, rdtResolveOpt, blkioResolveOpt)
+		ngen := nrigen.SpecGenerator(&sgen, opts...)
 
 		err = ngen.Adjust(adjust)
 		if err != nil {
