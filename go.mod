@@ -151,3 +151,5 @@ require (
 // Workaround for indirect dependency no longer being available.
 // https://github.com/containerd/containerd/issues/9969
 exclude github.com/mitchellh/osext v0.0.0-20151018003038-5e2d6d41470f
+
+replace github.com/containerd/nri v0.6.1 => github.com/klihub/nri v0.0.0-20240702121435-68f28b18fedb
