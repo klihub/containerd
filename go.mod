@@ -149,3 +149,5 @@ require (
 )
 
 replace github.com/containerd/containerd/api => ./api
+
+replace github.com/containerd/nri v0.6.1 => github.com/klihub/nri v0.0.0-20240702121435-68f28b18fedb
