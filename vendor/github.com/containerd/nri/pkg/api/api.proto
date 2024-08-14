@@ -127,11 +127,15 @@ message SynchronizeRequest {
   repeated PodSandbox pods = 1;
   // Containers known to the runtime.
   repeated Container containers = 2;
+  // Whether there are more pods and containers to follow.
+  bool more = 3;
 }
 
 message SynchronizeResponse {
   // Updates to containers requested by the plugin.
   repeated ContainerUpdate update = 1;
+  // Whether the client is able to handle more advertised pods and containers.
+  bool more = 2;
 }
 
 message CreateContainerRequest {
@@ -328,6 +332,7 @@ message LinuxResources {
   OptionalString rdt_class = 5;
   map<string, string> unified = 6;
   repeated LinuxDeviceCgroup devices = 7; // for NRI v1 emulation
+  LinuxPids pids = 8;
 }
 
 // Memory-related parts of (linux) resources.
@@ -364,6 +369,11 @@ message POSIXRlimit {
   string type = 1;
   uint64 hard = 2;
   uint64 soft = 3;
+}
+
+// Pids-related parts of (linux) resources.
+message LinuxPids {
+  int64 limit = 1;
 }
 
 // Requested adjustments to a container being created.

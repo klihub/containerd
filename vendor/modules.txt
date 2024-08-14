@@ -130,8 +130,8 @@ github.com/containerd/imgcrypt/images/encryption
 ## explicit; go 1.20
 github.com/containerd/log
 github.com/containerd/log/logtest
-# github.com/containerd/nri v0.6.1
-## explicit; go 1.19
+# github.com/containerd/nri v0.6.1 => github.com/klihub/nri v0.0.0-20240814115522-bceb1a2d80f8
+## explicit; go 1.20
 github.com/containerd/nri
 github.com/containerd/nri/pkg/adaptation
 github.com/containerd/nri/pkg/api
@@ -294,7 +294,7 @@ github.com/klauspost/compress/internal/cpuinfo
 github.com/klauspost/compress/internal/snapref
 github.com/klauspost/compress/zstd
 github.com/klauspost/compress/zstd/internal/xxhash
-# github.com/klauspost/cpuid/v2 v2.0.4
+# github.com/klauspost/cpuid/v2 v2.0.9
 ## explicit; go 1.13
 github.com/klauspost/cpuid/v2
 # github.com/matttproud/golang_protobuf_extensions v1.0.4
@@ -546,7 +546,7 @@ golang.org/x/text/secure/bidirule
 golang.org/x/text/transform
 golang.org/x/text/unicode/bidi
 golang.org/x/text/unicode/norm
-# golang.org/x/time v0.0.0-20220210224613-90d013bbcef8
+# golang.org/x/time v0.3.0
 ## explicit
 golang.org/x/time/rate
 # golang.org/x/tools v0.10.0
@@ -830,3 +830,4 @@ tags.cncf.io/container-device-interface/pkg/parser
 # tags.cncf.io/container-device-interface/specs-go v0.7.0
 ## explicit; go 1.19
 tags.cncf.io/container-device-interface/specs-go
+# github.com/containerd/nri => github.com/klihub/nri v0.0.0-20240814115522-bceb1a2d80f8

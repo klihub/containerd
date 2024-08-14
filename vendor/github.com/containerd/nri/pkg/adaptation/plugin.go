@@ -26,6 +26,7 @@ import (
 	"path/filepath"
 	"strconv"
 	"sync"
+	"syscall"
 	"time"
 
 	"github.com/containerd/nri/pkg/api"
@@ -412,13 +413,66 @@ func (p *plugin) synchronize(ctx context.Context, pods []*PodSandbox, containers
 	ctx, cancel := context.WithTimeout(ctx, getPluginRequestTimeout())
 	defer cancel()
 
-	req := &SynchronizeRequest{
-		Pods:       pods,
-		Containers: containers,
+	if len(containers) < 25 {
+		req := &SynchronizeRequest{
+			Pods:       pods,
+			Containers: containers,
+		}
+		rpl, err := p.stub.Synchronize(ctx, req)
+		if err == nil {
+			return rpl.Update, nil
+		}
+
+		if !errors.Is(err, syscall.EMSGSIZE) {
+			p.close()
+			return nil, err
+		}
 	}
-	rpl, err := p.stub.Synchronize(ctx, req)
-	if err != nil {
-		return nil, err
+
+	const (
+		maxPodsPerMsg = 50
+		maxCtrsPerMsg = 50
+	)
+
+	var (
+		rpl *SynchronizeResponse
+		err error
+	)
+
+	for {
+		req := &SynchronizeRequest{}
+
+		if len(pods) <= maxPodsPerMsg {
+			req.Pods = pods
+			pods = nil
+		} else {
+			req.Pods = pods[:maxPodsPerMsg]
+			pods = pods[maxPodsPerMsg:]
+		}
+		if len(containers) <= maxCtrsPerMsg {
+			req.Containers = containers
+			containers = nil
+		} else {
+			req.Containers = containers[:maxCtrsPerMsg]
+			containers = containers[maxCtrsPerMsg:]
+		}
+
+		req.More = len(pods) > 0 || len(containers) > 0
+
+		rpl, err = p.stub.Synchronize(ctx, req)
+		if err != nil {
+			p.close()
+			return nil, err
+		}
+
+		if !req.More {
+			break
+		} else {
+			if len(rpl.Update) > 0 || !rpl.More {
+				p.close()
+				return nil, fmt.Errorf("invalid response for intermediate sync request")
+			}
+		}
 	}
 
 	return rpl.Update, nil

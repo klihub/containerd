@@ -139,7 +139,7 @@ const (
 	// length of frame header: 4-byte ConnID, 4-byte payload length
 	headerLen = 8
 	// max. allowed payload size
-	maxPayloadSize = 1 << 24
+	maxPayloadSize = ttrpcMessageHeaderLength + ttrpcMessageLengthMax
 )
 
 // conn represents a single multiplexed connection.
@@ -429,16 +429,16 @@ func (c *conn) RemoteAddr() net.Addr {
 }
 
 // SetDeadline is the unimplemented stub for the corresponding net.Conn function.
-func (c *conn) SetDeadline(t time.Time) error {
+func (c *conn) SetDeadline(_ time.Time) error {
 	return nil
 }
 
 // SetReadDeadline is the unimplemented stub for the corresponding net.Conn function.
-func (c *conn) SetReadDeadline(t time.Time) error {
+func (c *conn) SetReadDeadline(_ time.Time) error {
 	return nil
 }
 
 // SetWriteDeadline is the unimplemented stub for the corresponding net.Conn function.
-func (c *conn) SetWriteDeadline(t time.Time) error {
+func (c *conn) SetWriteDeadline(_ time.Time) error {
 	return nil
 }
