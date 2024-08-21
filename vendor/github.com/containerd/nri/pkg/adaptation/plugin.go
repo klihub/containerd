@@ -26,7 +26,6 @@ import (
 	"path/filepath"
 	"strconv"
 	"sync"
-	"syscall"
 	"time"
 
 	"github.com/containerd/nri/pkg/api"
@@ -34,13 +33,15 @@ import (
 	"github.com/containerd/nri/pkg/net"
 	"github.com/containerd/nri/pkg/net/multiplex"
 	"github.com/containerd/ttrpc"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 )
 
 const (
-	// DefaultPluginRegistrationTimeout is the default timeout for plugin registration.
-	DefaultPluginRegistrationTimeout = 5 * time.Second
 	// DefaultPluginRequestTimeout is the default timeout for plugins to handle a request.
 	DefaultPluginRequestTimeout = 2 * time.Second
+	// DefaultPluginRegistrationTimeout is the default timeout for plugin registration.
+	DefaultPluginRegistrationTimeout = 2*time.Second + 3*DefaultPluginRequestTimeout
 )
 
 var (
@@ -413,65 +414,66 @@ func (p *plugin) synchronize(ctx context.Context, pods []*PodSandbox, containers
 	ctx, cancel := context.WithTimeout(ctx, getPluginRequestTimeout())
 	defer cancel()
 
-	if len(containers) < 25 {
-		req := &SynchronizeRequest{
-			Pods:       pods,
-			Containers: containers,
-		}
-		rpl, err := p.stub.Synchronize(ctx, req)
-		if err == nil {
-			return rpl.Update, nil
-		}
-
-		if !errors.Is(err, syscall.EMSGSIZE) {
-			p.close()
-			return nil, err
-		}
-	}
-
-	const (
-		maxPodsPerMsg = 50
-		maxCtrsPerMsg = 50
-	)
-
 	var (
+		podsPerMsg = len(pods)
+		ctrsPerMsg = len(containers)
+		podsToSend = pods
+		ctrsToSend = containers
+
 		rpl *SynchronizeResponse
 		err error
 	)
 
 	for {
-		req := &SynchronizeRequest{}
-
-		if len(pods) <= maxPodsPerMsg {
-			req.Pods = pods
-			pods = nil
-		} else {
-			req.Pods = pods[:maxPodsPerMsg]
-			pods = pods[maxPodsPerMsg:]
-		}
-		if len(containers) <= maxCtrsPerMsg {
-			req.Containers = containers
-			containers = nil
-		} else {
-			req.Containers = containers[:maxCtrsPerMsg]
-			containers = containers[maxCtrsPerMsg:]
+		req := &SynchronizeRequest{
+			Pods:       podsToSend[:podsPerMsg],
+			Containers: ctrsToSend[:ctrsPerMsg],
+			More:       len(podsToSend) > podsPerMsg || len(ctrsToSend) > ctrsPerMsg,
 		}
 
-		req.More = len(pods) > 0 || len(containers) > 0
+		log.Debugf(ctx, "sending sync message, %d/%d, %d/%d (more: %v)",
+			len(req.Pods), len(podsToSend), len(req.Containers), len(ctrsToSend), req.More)
 
 		rpl, err = p.stub.Synchronize(ctx, req)
-		if err != nil {
-			p.close()
-			return nil, err
-		}
-
-		if !req.More {
-			break
-		} else {
-			if len(rpl.Update) > 0 || !rpl.More {
-				p.close()
-				return nil, fmt.Errorf("invalid response for intermediate sync request")
+		if err == nil {
+			if !req.More {
+				break
 			}
+
+			if len(rpl.Update) > 0 {
+				p.close()
+				return nil, fmt.Errorf("received update for intermediate request")
+			}
+
+			if rpl.More != req.More {
+				p.close()
+				return nil, fmt.Errorf("plugin does not handle split sync requests")
+			}
+
+			podsToSend = podsToSend[podsPerMsg:]
+			if podsPerMsg > len(podsToSend) {
+				podsPerMsg = len(podsToSend)
+			}
+
+			ctrsToSend = ctrsToSend[ctrsPerMsg:]
+			if ctrsPerMsg > len(ctrsToSend) {
+				ctrsPerMsg = len(ctrsToSend)
+			}
+		} else {
+			if status.Code(err) != codes.ResourceExhausted {
+				p.close()
+				return nil, err
+			}
+
+			podsPerMsg = (podsPerMsg + 1) / 2
+			ctrsPerMsg = (ctrsPerMsg + 1) / 2
+
+			if podsPerMsg+ctrsPerMsg < 8 {
+				p.close()
+				return nil, fmt.Errorf("failed to synchronize plugin with split messages")
+			}
+
+			log.Debugf(ctx, "oversized message, retrying with smaller chunks")
 		}
 	}
 
