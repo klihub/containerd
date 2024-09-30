@@ -19,7 +19,9 @@ package nri
 import (
 	"context"
 	"fmt"
+	"os"
 	"sync"
+	"time"
 
 	"github.com/containerd/containerd/v2/pkg/namespaces"
 	"github.com/containerd/errdefs"
@@ -119,8 +121,13 @@ func (t *domainTable) getContainer(id string) (Container, Domain) {
 	return nil, nil
 }
 
+var (
+	serialUpdate = os.Getenv("NRI_SERIAL_UPDATE") != ""
+)
+
 func (t *domainTable) updateContainers(ctx context.Context, updates []*nri.ContainerUpdate) ([]*nri.ContainerUpdate, error) {
-	if false {
+	start := time.Now()
+	if serialUpdate {
 		var failed []*nri.ContainerUpdate
 
 		for _, u := range updates {
@@ -187,6 +194,9 @@ func (t *domainTable) updateContainers(ctx context.Context, updates []*nri.Conta
 			return failed, fmt.Errorf("NRI update of some containers failed")
 		}
 	}
+	elapsed := time.Now().Sub(start)
+	log.G(ctx).Infof("*** updated %d containers in %s (%s update)",
+		len(updates), elapsed, map[bool]string{true: "serial", false: "parallel"}[serialUpdate])
 
 	return nil, nil
 }
