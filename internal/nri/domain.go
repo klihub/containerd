@@ -120,30 +120,72 @@ func (t *domainTable) getContainer(id string) (Container, Domain) {
 }
 
 func (t *domainTable) updateContainers(ctx context.Context, updates []*nri.ContainerUpdate) ([]*nri.ContainerUpdate, error) {
-	var failed []*nri.ContainerUpdate
+	if false {
+		var failed []*nri.ContainerUpdate
 
-	for _, u := range updates {
-		_, d := t.getContainer(u.ContainerId)
-		if d == nil {
-			continue
-		}
-
-		domain := d.GetName()
-		err := d.UpdateContainer(namespaces.WithNamespace(ctx, domain), u)
-		if err != nil {
-			log.G(ctx).WithError(err).Errorf("NRI update of %s container %s failed",
-				domain, u.ContainerId)
-			if !u.IgnoreFailure {
-				failed = append(failed, u)
+		for _, u := range updates {
+			_, d := t.getContainer(u.ContainerId)
+			if d == nil {
+				continue
 			}
-			continue
+
+			domain := d.GetName()
+			err := d.UpdateContainer(namespaces.WithNamespace(ctx, domain), u)
+			if err != nil {
+				log.G(ctx).WithError(err).Errorf("NRI update of %s container %s failed",
+					domain, u.ContainerId)
+				if !u.IgnoreFailure {
+					failed = append(failed, u)
+				}
+				continue
+			}
+
+			log.G(ctx).Tracef("NRI update of %s container %s successful", domain, u.ContainerId)
 		}
 
-		log.G(ctx).Tracef("NRI update of %s container %s successful", domain, u.ContainerId)
-	}
+		if len(failed) != 0 {
+			return failed, fmt.Errorf("NRI update of some containers failed")
+		}
+	} else {
+		var (
+			wg   = sync.WaitGroup{}
+			fail = make(chan *nri.ContainerUpdate, len(updates))
+		)
 
-	if len(failed) != 0 {
-		return failed, fmt.Errorf("NRI update of some containers failed")
+		for _, u := range updates {
+			wg.Add(1)
+			go func(u *nri.ContainerUpdate) {
+				defer wg.Done()
+
+				_, d := t.getContainer(u.ContainerId)
+				if d == nil {
+					return
+				}
+
+				domain := d.GetName()
+				if err := d.UpdateContainer(namespaces.WithNamespace(ctx, domain), u); err != nil {
+					log.G(ctx).WithError(err).Errorf("NRI update of %s container %s failed",
+						domain, u.ContainerId)
+					if !u.IgnoreFailure {
+						fail <- u
+					}
+				} else {
+					log.G(ctx).Tracef("NRI update of %s container %s successful",
+						domain, u.ContainerId)
+				}
+			}(u)
+		}
+		wg.Wait()
+
+		close(fail)
+		failed := []*nri.ContainerUpdate{}
+		for f := range fail {
+			failed = append(failed, f)
+		}
+
+		if len(failed) != 0 {
+			return failed, fmt.Errorf("NRI update of some containers failed")
+		}
 	}
 
 	return nil, nil
