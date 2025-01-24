@@ -17,7 +17,8 @@ PROTO_GOFILES = $(patsubst %.proto,%.pb.go,$(PROTO_SOURCES))
 PROTO_INCLUDE = -I$(PWD):/usr/local/include:/usr/include
 PROTO_OPTIONS = --proto_path=. $(PROTO_INCLUDE) \
     --go_opt=paths=source_relative --go_out=. \
-    --go-ttrpc_opt=paths=source_relative --go-ttrpc_out=.
+    --go-ttrpc_opt=paths=source_relative --go-ttrpc_out=. \
+    --go-plugin_opt=paths=source_relative,disable_pb_gen=true --go-plugin_out=.
 PROTO_COMPILE = PATH=$(PATH):$(shell go env GOPATH)/bin; protoc $(PROTO_OPTIONS)
 
 GO_CMD     := go
@@ -33,6 +34,15 @@ GO_MODULES := $(shell $(GO_CMD) list ./...)
 GOLANG_CILINT := golangci-lint
 GINKGO        := ginkgo
 
+TINYGO_CMD   := tinygo
+TINYGO_BUILD := $(TINYGO_CMD) build -scheduler=none -target=wasi -no-debug
+TINYGO_DOCKER ?= 0
+# Keep the tinygo version in sync with .github/workflows/ci.yml
+tinygo-docker-build = \
+    echo "Docker-tinygo-building $(1)..."; \
+    docker run --rm -v $(PWD):$(PWD) tinygo/tinygo:0.34.0 \
+        /bin/bash -c "cd $(PWD); make TINYGO_DOCKER=0 $(1)"
+
 BUILD_PATH    := $(shell pwd)/build
 BIN_PATH      := $(BUILD_PATH)/bin
 COVERAGE_PATH := $(BUILD_PATH)/coverage
@@ -44,7 +54,8 @@ PLUGINS := \
 	$(BIN_PATH)/differ \
 	$(BIN_PATH)/ulimit-adjuster \
 	$(BIN_PATH)/v010-adapter \
-	$(BIN_PATH)/template
+	$(BIN_PATH)/template \
+	$(BIN_PATH)/wasm
 
 
 ifneq ($(V),1)
@@ -118,13 +129,25 @@ $(BIN_PATH)/template: $(wildcard plugins/template/*.go)
 	$(Q)echo "Building $@..."; \
 	cd $(dir $<) && $(GO_BUILD) -o $@ .
 
+ifneq ($(TINYGO_DOCKER),1)
+$(BIN_PATH)/wasm: $(wildcard plugins/wasm/*.go)
+	$(Q)echo "Building $@..."; \
+	mkdir -p $(BIN_PATH) && \
+	cd $(dir $<) && $(TINYGO_BUILD) -o $@ .
+else
+$(BIN_PATH)/wasm: $(wildcard plugins/wasm/*.go)
+	$(Q)echo "Building $@..."; \
+	mkdir -p $(BIN_PATH) && \
+	$(call tinygo-docker-build,$@)
+endif
+
 #
 # test targets
 #
 
 test-gopkgs: ginkgo-tests test-ulimits
 
-SKIPPED_PKGS="ulimit-adjuster"
+SKIPPED_PKGS="ulimit-adjuster,device-injector"
 
 ginkgo-tests:
 	$(Q)$(GINKGO) run \
@@ -137,11 +160,14 @@ ginkgo-tests:
 	    --coverprofile coverprofile \
 	    --succinct \
 	    --skip-package $(SKIPPED_PKGS) \
-	    -r .; \
+	    -r && \
 	$(GO_CMD) tool cover -html=$(COVERAGE_PATH)/coverprofile -o $(COVERAGE_PATH)/coverage.html
 
 test-ulimits:
 	$(Q)cd ./plugins/ulimit-adjuster && $(GO_TEST) -v
+
+test-device-injector:
+	$(Q)cd ./plugins/device-injector && $(GO_TEST) -v
 
 codecov: SHELL := $(shell which bash)
 codecov:
@@ -163,6 +189,13 @@ vet:
 golangci-lint:
 	$(Q)$(GOLANG_CILINT) run
 
+validate-repo-no-changes:
+	$(Q)test -z "$$(git status --short | tee /dev/stderr)" || { \
+		echo "Repository has changes."; \
+		echo "Please make sure to commit all changes, including generated files."; \
+		exit 1; \
+	}
+
 #
 # proto generation targets
 #
@@ -170,6 +203,7 @@ golangci-lint:
 %.pb.go: %.proto
 	$(Q)echo "Generating $@..."; \
 	$(PROTO_COMPILE) $<
+	sed -i '1s;^;//go:build !tinygo.wasm\n\n;' pkg/api/api_ttrpc.pb.go
 
 #
 # targets for installing dependencies
@@ -180,6 +214,9 @@ install-protoc install-protobuf:
 
 install-ttrpc-plugin:
 	$(Q)$(GO_INSTALL) -mod=mod github.com/containerd/ttrpc/cmd/protoc-gen-go-ttrpc@74421d10189e8c118870d294c9f7f62db2d33ec1
+
+install-wasm-plugin:
+	$(Q)$(GO_INSTALL) -mod=mod github.com/knqyf263/go-plugin/cmd/protoc-gen-go-plugin@d8d42059d8f1b52968cff7226b7094e5c6a0c342
 
 install-protoc-dependencies:
 	$(Q)$(GO_INSTALL) -mod=mod google.golang.org/protobuf/cmd/protoc-gen-go@v1.28.0
