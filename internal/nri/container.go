@@ -27,7 +27,7 @@ type Container interface {
 	GetPodSandboxID() string
 	GetID() string
 	GetName() string
-	GetState() nri.ContainerState
+	GetStatus() *ContainerStatus
 	GetLabels() map[string]string
 	GetAnnotations() map[string]string
 	GetArgs() []string
@@ -35,8 +35,6 @@ type Container interface {
 	GetMounts() []*nri.Mount
 	GetHooks() *nri.Hooks
 	GetLinuxContainer() LinuxContainer
-
-	GetPid() uint32
 }
 
 type LinuxContainer interface {
@@ -47,19 +45,37 @@ type LinuxContainer interface {
 	GetCgroupsPath() string
 }
 
+type ContainerStatus struct {
+	State      nri.ContainerState
+	Reason     string
+	Message    string
+	Pid        uint32
+	CreatedAt  int64
+	StartedAt  int64
+	FinishedAt int64
+	ExitCode   int32
+}
+
 func commonContainerToNRI(ctr Container) *nri.Container {
+	status := ctr.GetStatus()
 	return &nri.Container{
-		Id:           ctr.GetID(),
-		PodSandboxId: ctr.GetPodSandboxID(),
-		Name:         ctr.GetName(),
-		State:        ctr.GetState(),
-		Labels:       ctr.GetLabels(),
-		Annotations:  ctr.GetAnnotations(),
-		Args:         ctr.GetArgs(),
-		Env:          ctr.GetEnv(),
-		Mounts:       ctr.GetMounts(),
-		Hooks:        ctr.GetHooks(),
-		Pid:          ctr.GetPid(),
+		Id:            ctr.GetID(),
+		PodSandboxId:  ctr.GetPodSandboxID(),
+		Name:          ctr.GetName(),
+		State:         status.State,
+		StatusReason:  status.Reason,
+		StatusMessage: status.Message,
+		Pid:           status.Pid,
+		CreatedAt:     status.CreatedAt,
+		StartedAt:     status.StartedAt,
+		FinishedAt:    status.FinishedAt,
+		ExitCode:      status.ExitCode,
+		Labels:        ctr.GetLabels(),
+		Annotations:   ctr.GetAnnotations(),
+		Args:          ctr.GetArgs(),
+		Env:           ctr.GetEnv(),
+		Mounts:        ctr.GetMounts(),
+		Hooks:         ctr.GetHooks(),
 	}
 }
 
