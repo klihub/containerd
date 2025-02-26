@@ -27,7 +27,7 @@ type Container interface {
 	GetPodSandboxID() string
 	GetID() string
 	GetName() string
-	GetState() nri.ContainerState
+	GetStatus() *nri.ContainerStatus
 	GetLabels() map[string]string
 	GetAnnotations() map[string]string
 	GetArgs() []string
@@ -48,11 +48,13 @@ type LinuxContainer interface {
 }
 
 func commonContainerToNRI(ctr Container) *nri.Container {
+	status := ctr.GetStatus()
 	return &nri.Container{
 		Id:           ctr.GetID(),
 		PodSandboxId: ctr.GetPodSandboxID(),
 		Name:         ctr.GetName(),
-		State:        ctr.GetState(),
+		State:        status.GetState(),
+		Status:       status,
 		Labels:       ctr.GetLabels(),
 		Annotations:  ctr.GetAnnotations(),
 		Args:         ctr.GetArgs(),

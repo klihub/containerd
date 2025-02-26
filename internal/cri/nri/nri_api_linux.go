@@ -21,6 +21,7 @@ import (
 	"encoding/json"
 	"fmt"
 
+	eventtypes "github.com/containerd/containerd/api/events"
 	containerd "github.com/containerd/containerd/v2/client"
 	"github.com/containerd/containerd/v2/core/containers"
 	"github.com/containerd/containerd/v2/internal/cri/annotations"
@@ -29,6 +30,7 @@ import (
 	sstore "github.com/containerd/containerd/v2/internal/cri/store/sandbox"
 	ctrdutil "github.com/containerd/containerd/v2/internal/cri/util"
 	"github.com/containerd/containerd/v2/pkg/blockio"
+	"github.com/containerd/containerd/v2/pkg/protobuf"
 	"github.com/containerd/errdefs"
 	"github.com/containerd/log"
 	"github.com/containerd/typeurl/v2"
@@ -222,12 +224,12 @@ func (a *API) StopContainer(ctx context.Context, criPod *sstore.Sandbox, criCtr 
 	return err
 }
 
-func (a *API) NotifyContainerExit(ctx context.Context, criCtr *cstore.Container) {
+func (a *API) NotifyContainerExit(ctx context.Context, criCtr *cstore.Container, e *eventtypes.TaskExit) {
 	if a.IsDisabled() {
 		return
 	}
 
-	ctr := a.nriContainer(fromCriContainer(criCtr))
+	ctr := a.nriContainer(fromCriContainer(criCtr), withExitEvent(e))
 
 	criPod, _ := a.cri.SandboxStore().Get(ctr.GetPodSandboxID())
 	if criPod.ID == "" {
@@ -345,7 +347,7 @@ func (a *API) WithContainerAdjustment() containerd.NewContainerOpts {
 	}
 }
 
-func (a *API) WithContainerExit(criCtr *cstore.Container) containerd.ProcessDeleteOpts {
+func (a *API) WithContainerExit(criCtr *cstore.Container, e *eventtypes.TaskExit) containerd.ProcessDeleteOpts {
 	if a.IsDisabled() {
 		return func(_ context.Context, _ containerd.Process) error {
 			return nil
@@ -353,7 +355,7 @@ func (a *API) WithContainerExit(criCtr *cstore.Container) containerd.ProcessDele
 	}
 
 	return func(_ context.Context, _ containerd.Process) error {
-		a.NotifyContainerExit(context.Background(), criCtr)
+		a.NotifyContainerExit(context.Background(), criCtr, e)
 		return nil
 	}
 }
@@ -652,6 +654,7 @@ type criContainer struct {
 	spec *runtimespec.Spec
 	meta *cstore.Metadata
 	pid  uint32
+	exit *eventtypes.TaskExit
 }
 
 type criContainerOption func(*criContainer)
@@ -706,6 +709,12 @@ func withSpec(spec *runtimespec.Spec) criContainerOption {
 	}
 }
 
+func withExitEvent(e *eventtypes.TaskExit) criContainerOption {
+	return func(ctr *criContainer) {
+		ctr.exit = e
+	}
+}
+
 func (a *API) nriContainer(opts ...criContainerOption) *criContainer {
 	ctr := &criContainer{
 		api:  a,
@@ -739,21 +748,39 @@ func (c *criContainer) GetName() string {
 	return c.spec.Annotations[annotations.ContainerName]
 }
 
-func (c *criContainer) GetState() api.ContainerState {
-	criCtr, err := c.api.cri.ContainerStore().Get(c.GetID())
-	if err != nil {
-		return api.ContainerState_CONTAINER_UNKNOWN
-	}
-	switch criCtr.Status.Get().State() {
-	case cri.ContainerState_CONTAINER_CREATED:
-		return api.ContainerState_CONTAINER_CREATED
-	case cri.ContainerState_CONTAINER_RUNNING:
-		return api.ContainerState_CONTAINER_RUNNING
-	case cri.ContainerState_CONTAINER_EXITED:
-		return api.ContainerState_CONTAINER_STOPPED
+func (c *criContainer) GetStatus() *api.ContainerStatus {
+	status := &api.ContainerStatus{
+		State: api.ContainerState_CONTAINER_UNKNOWN,
 	}
 
-	return api.ContainerState_CONTAINER_UNKNOWN
+	criCtr, err := c.api.cri.ContainerStore().Get(c.GetID())
+	if err == nil {
+		s := criCtr.Status.Get()
+		switch s.State() {
+		case cri.ContainerState_CONTAINER_CREATED:
+			status.State = api.ContainerState_CONTAINER_CREATED
+		case cri.ContainerState_CONTAINER_RUNNING:
+			status.State = api.ContainerState_CONTAINER_RUNNING
+		case cri.ContainerState_CONTAINER_EXITED:
+			status.State = api.ContainerState_CONTAINER_STOPPED
+		}
+		status.Pid = s.Pid
+		status.CreatedAt = s.CreatedAt
+		status.StartedAt = s.StartedAt
+		status.FinishedAt = s.FinishedAt
+		status.ExitCode = s.ExitCode
+		if status.Pid == 0 { // in StartContainer we don't have PID in status yet
+			status.Pid = c.pid
+		}
+	}
+
+	if c.exit != nil {
+		status.State = api.ContainerState_CONTAINER_STOPPED
+		status.FinishedAt = protobuf.FromTimestamp(c.exit.ExitedAt).UnixNano()
+		status.ExitCode = int32(c.exit.ExitStatus)
+	}
+
+	return status
 }
 
 func (c *criContainer) GetLabels() map[string]string {
