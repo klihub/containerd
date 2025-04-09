@@ -869,6 +869,13 @@ func (c *criContainer) GetPid() uint32 {
 	return c.pid
 }
 
+func (c *criContainer) GetNetDevices() map[string]*api.LinuxNetDevice {
+	if c.spec.Linux == nil {
+		return nil
+	}
+	return api.FromOCILinuxNetDevices(c.spec.Linux.NetDevices)
+}
+
 //
 // conversion to/from CRI types
 //

@@ -31,6 +31,7 @@ func containerToNRI(ctr Container) *nri.Container {
 		Resources:   lnxCtr.GetLinuxResources(),
 		OomScoreAdj: nri.Int(lnxCtr.GetOOMScoreAdj()),
 		CgroupsPath: lnxCtr.GetCgroupsPath(),
+		NetDevices:  lnxCtr.GetNetDevices(),
 	}
 	return nriCtr
 }
