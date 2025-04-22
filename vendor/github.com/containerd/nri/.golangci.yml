@@ -31,6 +31,11 @@ issues:
         - golint
         - revive
       text: "should be strip"
+    - path: pkg/api/owners.go
+      linters:
+        - golint
+        - revive
+      text: "should be .*(Cpu|Tcp).*"
     # Differ copies pods and containers with Mutexes for diffing. Should be harmless.
     - path: plugins/differ/nri-differ.go
       linters:
