@@ -37,6 +37,8 @@ type Config struct {
 	PluginRequestTimeout tomlext.Duration `toml:"plugin_request_timeout" json:"pluginRequestTimeout"`
 	// DisableConnections disables connections from externally launched plugins.
 	DisableConnections bool `toml:"disable_connections" json:"disableConnections"`
+	// DefaultValidator is the configuration for the built-in default validator.
+	DefaultValidator *nri.DefaultValidatorConfig `toml:"default_validator" json:"defaultValidator"`
 }
 
 // DefaultConfig returns the default configuration.
@@ -66,6 +68,9 @@ func (c *Config) toOptions() []nri.Option {
 	}
 	if c.DisableConnections {
 		opts = append(opts, nri.WithDisabledExternalConnections())
+	}
+	if c.DefaultValidator != nil {
+		opts = append(opts, nri.WithDefaultValidator(c.DefaultValidator))
 	}
 	return opts
 }
