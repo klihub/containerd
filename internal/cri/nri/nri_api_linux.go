@@ -181,12 +181,12 @@ func (a *API) UpdateContainerResources(ctx context.Context, criPod *sstore.Sandb
 	pod := a.nriPodSandbox(criPod)
 	ctr := a.nriContainer(criCtr, nil)
 
-	r, err := a.nri.UpdateContainer(ctx, pod, ctr, api.FromCRILinuxResources(req))
+	r, err := a.nri.UpdateContainer(ctx, pod, ctr, FromCRILinuxResources(req))
 	if err != nil {
 		return nil, err
 	}
 
-	return r.ToCRI(noOomAdj), nil
+	return ToCRIResources(r, noOomAdj), nil
 }
 
 func (a *API) PostUpdateContainerResources(ctx context.Context, criPod *sstore.Sandbox, criCtr *cstore.Container) error {
@@ -446,7 +446,7 @@ func (a *API) UpdateContainer(ctx context.Context, u *api.ContainerUpdate) error
 		func(status cstore.Status) (cstore.Status, error) {
 			criReq := &cri.UpdateContainerResourcesRequest{
 				ContainerId: u.ContainerId,
-				Linux:       u.GetLinux().GetResources().ToCRI(0),
+				Linux:       ToCRIResources(u.GetLinux().GetResources(), 0),
 			}
 			newStatus, err := a.cri.UpdateContainerResources(ctx, ctr, criReq, status)
 			return newStatus, err
@@ -622,13 +622,13 @@ func (p *criPodSandbox) GetPodLinuxOverhead() *api.LinuxResources {
 	if p.Sandbox == nil {
 		return nil
 	}
-	return api.FromCRILinuxResources(p.Config.GetLinux().GetOverhead())
+	return FromCRILinuxResources(p.Config.GetLinux().GetOverhead())
 }
 func (p *criPodSandbox) GetPodLinuxResources() *api.LinuxResources {
 	if p.Sandbox == nil {
 		return nil
 	}
-	return api.FromCRILinuxResources(p.Config.GetLinux().GetResources())
+	return FromCRILinuxResources(p.Config.GetLinux().GetResources())
 }
 
 func (p *criPodSandbox) GetLinuxResources() *api.LinuxResources {
@@ -867,4 +867,74 @@ func (c *criContainer) GetCgroupsPath() string {
 
 func (c *criContainer) GetPid() uint32 {
 	return c.pid
+}
+
+//
+// conversion to/from CRI types
+//
+
+func FromCRILinuxResources(c *cri.LinuxContainerResources) *api.LinuxResources {
+	if c == nil {
+		return nil
+	}
+	shares, quota, period := uint64(c.CpuShares), c.CpuQuota, uint64(c.CpuPeriod)
+	r := &api.LinuxResources{
+		Cpu: &api.LinuxCPU{
+			Shares: api.UInt64(&shares),
+			Quota:  api.Int64(&quota),
+			Period: api.UInt64(&period),
+			Cpus:   c.CpusetCpus,
+			Mems:   c.CpusetMems,
+		},
+		Memory: &api.LinuxMemory{
+			Limit: api.Int64(&c.MemoryLimitInBytes),
+		},
+	}
+	for _, l := range c.HugepageLimits {
+		r.HugepageLimits = append(r.HugepageLimits,
+			&api.HugepageLimit{
+				PageSize: l.PageSize,
+				Limit:    l.Limit,
+			})
+	}
+	if len(c.Unified) != 0 {
+		r.Unified = make(map[string]string)
+		for k, v := range c.Unified {
+			r.Unified[k] = v
+		}
+	}
+	return r
+}
+
+// ToCRI returns resources for CRI.
+func ToCRIResources(r *api.LinuxResources, oomScoreAdj int64) *cri.LinuxContainerResources {
+	if r == nil {
+		return nil
+	}
+	o := &cri.LinuxContainerResources{}
+	if r.Memory != nil {
+		o.MemoryLimitInBytes = r.Memory.GetLimit().GetValue()
+		o.OomScoreAdj = oomScoreAdj
+	}
+	if r.Cpu != nil {
+		o.CpuShares = int64(r.Cpu.GetShares().GetValue())
+		o.CpuPeriod = int64(r.Cpu.GetPeriod().GetValue())
+		o.CpuQuota = r.Cpu.GetQuota().GetValue()
+		o.CpusetCpus = r.Cpu.Cpus
+		o.CpusetMems = r.Cpu.Mems
+	}
+	for _, l := range r.HugepageLimits {
+		o.HugepageLimits = append(o.HugepageLimits, &cri.HugepageLimit{
+			PageSize: l.PageSize,
+			Limit:    l.Limit,
+		})
+	}
+	if len(r.Unified) != 0 {
+		o.Unified = make(map[string]string)
+		for k, v := range r.Unified {
+			o.Unified[k] = v
+		}
+	}
+
+	return o
 }
