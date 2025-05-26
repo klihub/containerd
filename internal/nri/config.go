@@ -17,6 +17,8 @@
 package nri
 
 import (
+	"slices"
+
 	"github.com/containerd/containerd/v2/internal/tomlext"
 	nri "github.com/containerd/nri/pkg/adaptation"
 	validator "github.com/containerd/nri/plugins/default-validator"
@@ -38,6 +40,8 @@ type Config struct {
 	PluginRequestTimeout tomlext.Duration `toml:"plugin_request_timeout" json:"pluginRequestTimeout"`
 	// DisableConnections disables connections from externally launched plugins.
 	DisableConnections bool `toml:"disable_connections" json:"disableConnections"`
+	// PluginIdentities is the identities plugins can authenticate to.
+	PluginIdentities []*nri.Identity `toml:"plugin_identities" json:"pluginIdentities"`
 	// DefaultValidator is the configuration for the built-in default validator.
 	DefaultValidator *validator.DefaultValidatorConfig `toml:"default_validator" json:"defaultValidator"`
 }
@@ -69,6 +73,9 @@ func (c *Config) toOptions() []nri.Option {
 	}
 	if c.DisableConnections {
 		opts = append(opts, nri.WithDisabledExternalConnections())
+	}
+	if len(c.PluginIdentities) > 0 {
+		opts = append(opts, nri.WithPluginIdentities(&nri.AuthConfig{Identities: slices.Clone(c.PluginIdentities)}))
 	}
 	if c.DefaultValidator != nil {
 		opts = append(opts, nri.WithDefaultValidator(c.DefaultValidator))
