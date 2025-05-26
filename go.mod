@@ -170,4 +170,4 @@ exclude (
 
 replace github.com/containerd/containerd/api => ./api
 
-replace github.com/containerd/nri => github.com/klihub/nri v0.0.0-20250523204707-c119aa7d335d
+replace github.com/containerd/nri => github.com/klihub/nri v0.0.0-20250526131857-2c6576704834

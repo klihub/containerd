@@ -168,12 +168,13 @@ github.com/containerd/imgcrypt/v2/images/encryption
 ## explicit; go 1.20
 github.com/containerd/log
 github.com/containerd/log/logtest
-# github.com/containerd/nri v0.8.0 => github.com/klihub/nri v0.0.0-20250523204707-c119aa7d335d
+# github.com/containerd/nri v0.8.0 => github.com/klihub/nri v0.0.0-20250526131857-2c6576704834
 ## explicit; go 1.22.0
 github.com/containerd/nri
 github.com/containerd/nri/pkg/adaptation
 github.com/containerd/nri/pkg/adaptation/builtin
 github.com/containerd/nri/pkg/api
+github.com/containerd/nri/pkg/auth
 github.com/containerd/nri/pkg/log
 github.com/containerd/nri/pkg/net
 github.com/containerd/nri/pkg/net/multiplex
@@ -633,8 +634,12 @@ go.uber.org/goleak/internal/stack
 # golang.org/x/crypto v0.36.0
 ## explicit; go 1.23.0
 golang.org/x/crypto/cast5
+golang.org/x/crypto/chacha20
+golang.org/x/crypto/chacha20poly1305
 golang.org/x/crypto/cryptobyte
 golang.org/x/crypto/cryptobyte/asn1
+golang.org/x/crypto/internal/alias
+golang.org/x/crypto/internal/poly1305
 golang.org/x/crypto/openpgp
 golang.org/x/crypto/openpgp/armor
 golang.org/x/crypto/openpgp/elgamal
@@ -937,4 +942,4 @@ tags.cncf.io/container-device-interface/pkg/parser
 ## explicit; go 1.19
 tags.cncf.io/container-device-interface/specs-go
 # github.com/containerd/containerd/api => ./api
-# github.com/containerd/nri => github.com/klihub/nri v0.0.0-20250523204707-c119aa7d335d
+# github.com/containerd/nri => github.com/klihub/nri v0.0.0-20250526131857-2c6576704834

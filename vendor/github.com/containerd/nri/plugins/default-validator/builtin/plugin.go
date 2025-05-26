@@ -27,6 +27,7 @@ import (
 
 type (
 	DefaultValidatorConfig = validator.DefaultValidatorConfig
+	ValidatorConfig        = validator.ValidatorConfig
 )
 
 // GetDefaultValidator returns a configured instance of the default validator.

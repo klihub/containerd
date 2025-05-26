@@ -33,8 +33,9 @@ import (
 type DefaultValidatorConfig struct {
 	// Enable the default validator plugin.
 	Enable bool `yaml:"enable" toml:"enable"`
-	// RejectOCIHooks fails validation if any plugin injects OCI hooks.
-	RejectOCIHooks bool `yaml:"rejectOCIHooks" toml:"reject_oci_hooks"`
+	*ValidatorConfig
+	// Overrides provide per-identity overridet to the default configuration.
+	Overrides map[string]*ValidatorConfig `yaml:"overrides" toml:"overrides"`
 	// RequiredPlugins list globally required plugins. These must be present
 	// or otherwise validation will fail.
 	// WARNING: This is a global setting and will affect all containers. In
@@ -48,6 +49,12 @@ type DefaultValidatorConfig struct {
 	// TolerateMissingPlugins is an optional annotation key. If set, it can
 	// be used to annotate containers to tolerate missing required plugins.
 	TolerateMissingAnnotation string `yaml:"tolerateMissingPluginsAnnotation" toml:"tolerate_missing_plugins_annotation"`
+}
+
+// ValidatorConfig provides validation defaults or per identity overrides.
+type ValidatorConfig struct {
+	// RejectOCIHooks fails validation if a plugin injects OCI hooks.
+	RejectOCIHooks *bool `yaml:"rejectOCIHooks" toml:"reject_oci_hooks"`
 }
 
 // DefaultValidator implements default validation.
@@ -83,12 +90,14 @@ func (v *DefaultValidator) ValidateContainerAdjustment(ctx context.Context, req 
 	log.Debugf(ctx, "Validating adjustment of container %s/%s/%s",
 		req.GetPod().GetNamespace(), req.GetPod().GetName(), req.GetContainer().GetName())
 
-	if err := v.validateOCIHooks(req); err != nil {
+	plugins := req.GetPluginMap()
+
+	if err := v.validateOCIHooks(req, plugins); err != nil {
 		log.Errorf(ctx, "rejecting adjustment: %v", err)
 		return err
 	}
 
-	if err := v.validateRequiredPlugins(req); err != nil {
+	if err := v.validateRequiredPlugins(req, plugins); err != nil {
 		log.Errorf(ctx, "rejecting adjustment: %v", err)
 		return err
 	}
@@ -96,12 +105,8 @@ func (v *DefaultValidator) ValidateContainerAdjustment(ctx context.Context, req 
 	return nil
 }
 
-func (v *DefaultValidator) validateOCIHooks(req *api.ValidateContainerAdjustmentRequest) error {
+func (v *DefaultValidator) validateOCIHooks(req *api.ValidateContainerAdjustmentRequest, plugins map[string]*api.PluginInstance) error {
 	if req.Adjust == nil {
-		return nil
-	}
-
-	if !v.cfg.RejectOCIHooks {
 		return nil
 	}
 
@@ -110,18 +115,34 @@ func (v *DefaultValidator) validateOCIHooks(req *api.ValidateContainerAdjustment
 		return nil
 	}
 
+	defaults := v.cfg.ValidatorConfig
+	rejected := []string{}
+
+	for _, p := range strings.Split(owners, ",") {
+		if instance, ok := plugins[p]; ok {
+			cfg := v.cfg.GetConfig(instance.GetIdentity())
+			if cfg.RejectOCIHookInjection(defaults) {
+				rejected = append(rejected, p)
+			}
+		}
+	}
+
+	if len(rejected) == 0 {
+		return nil
+	}
+
 	offender := ""
 
-	if !strings.Contains(owners, ",") {
-		offender = fmt.Sprintf("plugin %q", owners)
+	if len(rejected) == 1 {
+		offender = fmt.Sprintf("plugin %q", rejected[0])
 	} else {
-		offender = fmt.Sprintf("plugins %q", owners)
+		offender = fmt.Sprintf("plugins %q", strings.Join(rejected, ","))
 	}
 
 	return fmt.Errorf("%w: %s attempted restricted OCI hook injection", ErrValidation, offender)
 }
 
-func (v *DefaultValidator) validateRequiredPlugins(req *api.ValidateContainerAdjustmentRequest) error {
+func (v *DefaultValidator) validateRequiredPlugins(req *api.ValidateContainerAdjustmentRequest, plugins map[string]*api.PluginInstance) error {
 	var (
 		container = req.GetContainer().GetName()
 		required  = slices.Clone(v.cfg.RequiredPlugins)
@@ -152,7 +173,6 @@ func (v *DefaultValidator) validateRequiredPlugins(req *api.ValidateContainerAdj
 		return nil
 	}
 
-	plugins := req.GetPluginMap()
 	missing := []string{}
 
 	for _, r := range required {
@@ -174,4 +194,24 @@ func (v *DefaultValidator) validateRequiredPlugins(req *api.ValidateContainerAdj
 	}
 
 	return fmt.Errorf("%w: %s not present", ErrValidation, offender)
+}
+
+// GetConfig returns overrides for the named identity if it exists in the
+// configuration.
+func (cfg *DefaultValidatorConfig) GetConfig(id string) *ValidatorConfig {
+	if cfg == nil || cfg.Overrides == nil {
+		return nil
+	}
+	return cfg.Overrides[id]
+}
+
+// RejectOCIHookInjection check whether OCI hook injection is rejected,
+// falling back to a default configuration if cfg is nil or omits hook
+// injection configuration.
+func (cfg *ValidatorConfig) RejectOCIHookInjection(defaults *ValidatorConfig) bool {
+	if cfg != nil && cfg.RejectOCIHooks != nil {
+		return *cfg.RejectOCIHooks
+	}
+
+	return defaults != nil && defaults.RejectOCIHookInjection(nil)
 }
