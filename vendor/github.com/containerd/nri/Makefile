@@ -79,6 +79,13 @@ FORCE:
 
 build-proto: $(PROTO_GOFILES)
 
+.PHONY: build-proto-dockerized
+build-proto-dockerized:
+	$(Q)docker build --build-arg ARTIFACTS="$(dir $(PROTO_GOFILES))" --target final \
+		--output type=local,dest=$(RESOLVED_PWD) \
+		-f hack/Dockerfile.buildproto .
+	$(Q)tar xf artifacts.tgz && rm -f artifacts.tgz
+
 build-plugins: $(PLUGINS)
 
 build-check:
@@ -171,9 +178,12 @@ validate-repo-no-changes:
 #
 
 %.pb.go: %.proto
-	$(Q)echo "Generating $@..."; \
-	$(PROTO_COMPILE) $<
-	sed -i '1s;^;//go:build !wasip1\n\n;' pkg/api/api_ttrpc.pb.go
+	$(Q)echo "Proto-compiling $<..."; \
+	$(PROTO_COMPILE) $< && \
+	ttrpc=$(dir $@)api_ttrpc.pb.go && \
+	if [ -f "$$ttrpc" ]; then \
+	    sed -i '1s;^;//go:build !wasip1\n\n;' $$ttrpc; \
+	fi
 
 #
 # targets for installing dependencies
