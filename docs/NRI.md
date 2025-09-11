@@ -165,3 +165,100 @@ Using this configuration you can selectively disable
 Additionally, you can require a set of NRI plugins to always be present for
 container creation to succeed, and an annotation key which can be used to
 annotate containers otherwise.
+
+## Authenticated Plugins
+
+NRI can be configured to authenticate plugins. The default validator can be
+set up with dedicated configuration for authenticated plugins. This allows
+one to set up a globally restricted configuration, with exceptions for some
+authenticated plugins.
+
+For instance the following configuration segment defines two authenticated
+plugin roles, one with OCI hook injection allowed and another with namespace
+adjustment allowed. It also disabled hook injection and namespace adjustment
+by default.
+
+```toml
+[plugins."io.containerd.nri.v1.nri"]
+disable = false
+socket_path = "/var/run/nri/nri.sock"
+plugin_path = "/opt/nri/plugins"
+plugin_config_path = "/etc/nri/conf.d"
+plugin_registration_timeout = "5s"
+plugin_request_timeout = "2s"
+disable_connections = false
+  [[plugins."io.containerd.nri.v1.nri".plugin_roles]]
+    role = "hook_injector"
+    keys = [ "bJtc4n1zJg+GY39n+oyfNbMzJo1UgtzAxifxireq8W0=" ]
+#    tags = { hooks = "true" }
+
+  [[plugins."io.containerd.nri.v1.nri".plugin_roles]]
+    role = "namespace_adjuster"
+    keys = [ "8gGj+wy7oAuAmasm5K0RPTXLnLQSe8F5x4tp39+OlDo=" ]
+#    tags = { namespaces = "true" }
+
+[plugins."io.containerd.nri.v1.nri".default_validator]
+  enable = true
+  reject_oci_hook_adjustment = true
+  reject_namespace_adjustment = true
+  [plugins."io.containerd.nri.v1.nri".default_validator.roles.hook_injector]
+    reject_oci_hooks = false
+  [plugins."io.containerd.nri.v1.nri".default_validator.roles.namespace_adjuster]
+    reject_namespace_adjustment = false
+```
+
+You can now test authentication using the no-op template plugin for simplicity,
+like this:
+
+```bash
+# Set up keys for hook injection using the NRI example key generator.
+$ mkdir -p auth/hooks
+$ go run examples/keygen/keygen.go | tee auth/hooks/keys
+----- private key -----
+Bf2GP9q5V1B9nAhPGJ2e5b+eE23KzC/Cgj/XCEVLLag=
+----- public key -----
+bJtc4n1zJg+GY39n+oyfNbMzJo1UgtzAxifxireq8W0=
+$ head -2 auth/hooks/keys | tail -1 > auth/hooks/private
+$ tail -1 auth/hooks/keys > auth/hooks/public
+# Set up keys for namespace adjustment.
+$ mkdir -p auth/namespaces
+$ go run examples/keygen/keygen.go | tee auth/namespaces/keys
+----- private key -----
+yTnto4OSkC7u/b4+gljm8r4lpfK4weNFN33D5U+7WJU=
+----- public key -----
+8gGj+wy7oAuAmasm5K0RPTXLnLQSe8F5x4tp39+OlDo=
+$ head -2 auth/namespaces/keys | tail -1 > auth/namespaces/private
+$ tail -1 auth/namespaces/keys > auth/namespaces/public
+# Authenticate the template plugin as a hook injector.
+$ NRI_PLUGIN_AUTH_KEYDIR=$(pwd)/auth/hooks ./bin/template -idx 10
+INFO   [0000] Created plugin 10-template (template, handles RunPodSandbox,StopPodSandbox,RemovePodSandbox,CreateContainer,PostCreateContainer,StartContainer,PostStartContainer,UpdateContainer,PostUpdateContainer,StopContainer,RemoveContainer)
+INFO   [0000] Authenticated with role hook_injector (tags: map[hooks:true])...
+INFO   [0000] Registering plugin 10-template...
+INFO   [0000] Configuring plugin 10-template for runtime containerd/v2.1.0-372-g7b052529d.m...
+INFO   [0000] Connected to containerd/v2.1.0-372-g7b052529d.m...
+INFO   [0000] Subscribing plugin 10-template (template) for events RunPodSandbox,StopPodSandbox,RemovePodSandbox,CreateContainer,PostCreateContainer,StartContainer,PostStartContainer,UpdateContainer,PostUpdateContainer,StopContainer,RemoveContainer
+INFO   [0000] Started plugin 10-template...
+INFO   [0000] Synchronized state with the runtime (15 pods, 8 containers)...
+^C
+$ NRI_PLUGIN_AUTH_KEYDIR=$(pwd)/auth/namespaces ./bin/template -idx 10
+INFO   [0000] Created plugin 10-template (template, handles RunPodSandbox,StopPodSandbox,RemovePodSandbox,CreateContainer,PostCreateContainer,StartContainer,PostStartContainer,UpdateContainer,PostUpdateContainer,StopContainer,RemoveContainer)
+INFO   [0000] Authenticated with role namespace_adjuster (tags: map[namespaces:true])...
+INFO   [0000] Registering plugin 10-template...
+INFO   [0000] Configuring plugin 10-template for runtime containerd/v2.1.0-372-g7b052529d.m...
+INFO   [0000] Connected to containerd/v2.1.0-372-g7b052529d.m...
+INFO   [0000] Subscribing plugin 10-template (template) for events RunPodSandbox,StopPodSandbox,RemovePodSandbox,CreateContainer,PostCreateContainer,StartContainer,PostStartContainer,UpdateContainer,PostUpdateContainer,StopContainer,RemoveContainer
+INFO   [0000] Started plugin 10-template...
+INFO   [0000] Synchronized state with the runtime (15 pods, 8 containers)...
+^C
+```
+
+With such a configuration plugins will be unable to inject OCI hooks
+or adjust Linux namespaces, unless they authenticate themselves to the
+`hook_injector` or `namespace_adjuster` roles correspondingly, using
+the keys listed there.
+
+If you have a more complex custom validator, you can tag the roles with
+arbitrary tags corresponding to hook injection and namespace adjustment,
+as shown in the commented out configuration, then check for the presence
+of those tags when a plugins requests either operation to decide whether
+to allow or reject validation.
