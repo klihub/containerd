@@ -869,6 +869,17 @@ func (c *criContainer) GetPid() uint32 {
 	return c.pid
 }
 
+func (c *criContainer) GetUser() *api.User {
+	if c.spec.Process == nil {
+		return nil
+	}
+	return &api.User{
+		Uid:            c.spec.Process.User.UID,
+		Gid:            c.spec.Process.User.GID,
+		AdditionalGids: c.spec.Process.User.AdditionalGids,
+	}
+}
+
 //
 // conversion to/from CRI types
 //

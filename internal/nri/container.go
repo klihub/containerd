@@ -37,6 +37,7 @@ type Container interface {
 	GetLinuxContainer() LinuxContainer
 
 	GetPid() uint32
+	GetUser() *nri.User
 }
 
 type LinuxContainer interface {
@@ -60,6 +61,7 @@ func commonContainerToNRI(ctr Container) *nri.Container {
 		Mounts:       ctr.GetMounts(),
 		Hooks:        ctr.GetHooks(),
 		Pid:          ctr.GetPid(),
+		User:         ctr.GetUser(),
 	}
 }
 
