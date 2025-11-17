@@ -29,6 +29,11 @@ import (
 	nri "github.com/containerd/nri/pkg/api"
 )
 
+const (
+	// UnlimitedPidsLimit indicates unlimited Linux PIDs limit.
+	UnlimitedPidsLimit = -1
+)
+
 // GeneratorOption is an option for Generator().
 type GeneratorOption func(*Generator)
 
@@ -126,6 +131,7 @@ func (g *Generator) Adjust(adjust *nri.ContainerAdjustment) error {
 	if err := g.AdjustNamespaces(adjust.GetLinux().GetNamespaces()); err != nil {
 		return err
 	}
+	g.AdjustLinuxNetDevices(adjust.GetLinux().GetNetDevices())
 
 	resources := adjust.GetLinux().GetResources()
 	if err := g.AdjustResources(resources); err != nil {
@@ -428,6 +434,19 @@ func (g *Generator) AdjustDevices(devices []*nri.LinuxDevice) {
 	}
 }
 
+// AdjustLinuxNetDevices adjusts the linux net devices in the OCI Spec.
+func (g *Generator) AdjustLinuxNetDevices(devices map[string]*nri.LinuxNetDevice) error {
+	for k, v := range devices {
+		if key, marked := nri.IsMarkedForRemoval(k); marked {
+			g.RemoveLinuxNetDevice(key)
+		} else {
+			g.AddLinuxNetDevice(k, v)
+		}
+	}
+
+	return nil
+}
+
 // InjectCDIDevices injects the requested CDI devices into the OCI Spec.
 // Devices are given by their fully qualified CDI device names. The
 // actual device injection is done using a runtime-specific CDI
@@ -445,6 +464,7 @@ func (g *Generator) InjectCDIDevices(devices []*nri.CDIDevice) error {
 	return g.injectCDIDevices(g.Config, names)
 }
 
+// AdjustRlimits adjusts the (Linux) POSIX resource limits in the OCI Spec.
 func (g *Generator) AdjustRlimits(rlimits []*nri.POSIXRlimit) error {
 	for _, l := range rlimits {
 		if l == nil {
@@ -504,15 +524,15 @@ func (g *Generator) AdjustMounts(mounts []*nri.Mount) error {
 
 // sortMounts sorts the mounts in the generated OCI Spec.
 func (g *Generator) sortMounts() {
-	mounts := g.Generator.Mounts()
-	g.Generator.ClearMounts()
+	mounts := g.Mounts()
+	g.ClearMounts()
 	sort.Sort(orderedMounts(mounts))
 
 	// TODO(klihub): This is now a bit ugly maybe we should introduce a
 	// SetMounts([]rspec.Mount) to runtime-tools/generate.Generator. That
 	// could also take care of properly sorting the mount slice.
 
-	g.Generator.Config.Mounts = mounts
+	g.Config.Mounts = mounts
 }
 
 // orderedMounts defines how to sort an OCI Spec Mount slice.
@@ -601,12 +621,43 @@ func (g *Generator) SetLinuxResourcesBlockIO(blockIO *rspec.LinuxBlockIO) {
 	g.Config.Linux.Resources.BlockIO = blockIO
 }
 
+// SetProcessIOPriority sets the (Linux) IO priority of the container.
 func (g *Generator) SetProcessIOPriority(ioprio *rspec.LinuxIOPriority) {
 	g.initConfigProcess()
 	if ioprio != nil && ioprio.Class == "" {
 		ioprio = nil
 	}
 	g.Config.Process.IOPriority = ioprio
+}
+
+// SetLinuxResourcesPidsLimit sets Linux PID limit. Starting with
+// v1.3.0 opencontainers/runtime-spec switched the PID limit to
+// *int64 from int64 with nil meaning "unlimited". We don't want
+// to change our API types though, so instead we use a dedicated
+// value for unlimited.
+func (g *Generator) SetLinuxResourcesPidsLimit(limit int64) {
+	g.initConfigLinuxResources()
+	if g.Config.Linux.Resources.Pids == nil {
+		g.Config.Linux.Resources.Pids = &rspec.LinuxPids{}
+	}
+	if limit > UnlimitedPidsLimit {
+		g.Config.Linux.Resources.Pids.Limit = &limit
+	}
+}
+
+// AddLinuxNetDevice adds a new Linux net device.
+func (g *Generator) AddLinuxNetDevice(hostDev string, device *nri.LinuxNetDevice) {
+	if device == nil {
+		return
+	}
+	g.initConfigLinuxNetDevices()
+	g.Config.Linux.NetDevices[hostDev] = device.ToOCI()
+}
+
+// RemoveLinuxNetDevice removes a Linux net device.
+func (g *Generator) RemoveLinuxNetDevice(hostDev string) {
+	g.initConfigLinuxNetDevices()
+	delete(g.Config.Linux.NetDevices, hostDev)
 }
 
 func (g *Generator) initConfig() {
@@ -640,5 +691,12 @@ func (g *Generator) initConfigLinuxResources() {
 	g.initConfigLinux()
 	if g.Config.Linux.Resources == nil {
 		g.Config.Linux.Resources = &rspec.LinuxResources{}
+	}
+}
+
+func (g *Generator) initConfigLinuxNetDevices() {
+	g.initConfigLinux()
+	if g.Config.Linux.NetDevices == nil {
+		g.Config.Linux.NetDevices = map[string]rspec.LinuxNetDevice{}
 	}
 }
