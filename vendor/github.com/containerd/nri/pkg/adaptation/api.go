@@ -88,10 +88,15 @@ type (
 	LinuxResources           = api.LinuxResources
 	LinuxCPU                 = api.LinuxCPU
 	LinuxMemory              = api.LinuxMemory
+	LinuxMemoryPolicy        = api.LinuxMemoryPolicy
 	LinuxDevice              = api.LinuxDevice
 	LinuxDeviceCgroup        = api.LinuxDeviceCgroup
 	LinuxIOPriority          = api.LinuxIOPriority
 	LinuxSeccomp             = api.LinuxSeccomp
+	LinuxNetDevice           = api.LinuxNetDevice
+	LinuxScheduler           = api.LinuxScheduler
+	LinuxSchedulerPolicy     = api.LinuxSchedulerPolicy
+	LinuxSchedulerFlag       = api.LinuxSchedulerFlag
 	CDIDevice                = api.CDIDevice
 	HugepageLimit            = api.HugepageLimit
 	Hooks                    = api.Hooks

@@ -160,6 +160,8 @@ require (
 	tags.cncf.io/container-device-interface/specs-go v1.0.0 // indirect
 )
 
+replace github.com/containerd/nri => github.com/askervin/nri v0.0.0-20251208171133-38cddf58161c
+
 exclude (
 	// These dependencies were updated to "master" in some modules we depend on,
 	// but have no code-changes since their last release. Unfortunately, this also

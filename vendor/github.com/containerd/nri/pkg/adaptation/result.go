@@ -82,6 +82,9 @@ func collectCreateContainerResult(request *CreateContainerRequest) *result {
 	if request.Container.Linux.Namespaces == nil {
 		request.Container.Linux.Namespaces = []*LinuxNamespace{}
 	}
+	if request.Container.Linux.NetDevices == nil {
+		request.Container.Linux.NetDevices = map[string]*LinuxNetDevice{}
+	}
 
 	return &result{
 		request: resultRequest{
@@ -104,6 +107,7 @@ func collectCreateContainerResult(request *CreateContainerRequest) *result {
 						Unified:        map[string]string{},
 					},
 					Namespaces: []*LinuxNamespace{},
+					NetDevices: map[string]*LinuxNetDevice{},
 				},
 			},
 		},
@@ -233,6 +237,18 @@ func (r *result) adjust(rpl *ContainerAdjustment, plugin string) error {
 			return err
 		}
 		if err := r.adjustNamespaces(rpl.Linux.Namespaces, plugin); err != nil {
+			return err
+		}
+		if err := r.adjustSysctl(rpl.Linux.Sysctl, plugin); err != nil {
+			return err
+		}
+		if err := r.adjustLinuxNetDevices(rpl.Linux.NetDevices, plugin); err != nil {
+			return err
+		}
+		if err := r.adjustLinuxScheduler(rpl.Linux.Scheduler, plugin); err != nil {
+			return err
+		}
+		if err := r.adjustMemoryPolicy(rpl.Linux.MemoryPolicy, plugin); err != nil {
 			return err
 		}
 	}
@@ -447,6 +463,41 @@ func (r *result) adjustNamespaces(namespaces []*LinuxNamespace, plugin string) e
 	}
 
 	create.Container.Linux.Namespaces = slices.Collect(maps.Values(creatensmap))
+
+	return nil
+}
+
+func (r *result) adjustSysctl(sysctl map[string]string, plugin string) error {
+	if len(sysctl) == 0 {
+		return nil
+	}
+
+	create, id := r.request.create, r.request.create.Container.Id
+	del := map[string]struct{}{}
+	for k := range sysctl {
+		if key, marked := IsMarkedForRemoval(k); marked {
+			del[key] = struct{}{}
+			delete(sysctl, k)
+		}
+	}
+
+	for k, v := range sysctl {
+		if _, ok := del[k]; ok {
+			r.owners.ClearSysctl(id, k, plugin)
+			delete(create.Container.Linux.Sysctl, k)
+			r.reply.adjust.Linux.Sysctl[MarkForRemoval(k)] = ""
+		}
+		if err := r.owners.ClaimSysctl(id, k, plugin); err != nil {
+			return err
+		}
+		create.Container.Linux.Sysctl[k] = v
+		r.reply.adjust.Linux.Sysctl[k] = v
+		delete(del, k)
+	}
+
+	for k := range del {
+		r.reply.adjust.Annotations[MarkForRemoval(k)] = ""
+	}
 
 	return nil
 }
@@ -909,6 +960,39 @@ func (r *result) adjustSeccompPolicy(adjustment *LinuxSeccomp, plugin string) er
 	return nil
 }
 
+func (r *result) adjustLinuxScheduler(sch *LinuxScheduler, plugin string) error {
+	if sch == nil {
+		return nil
+	}
+
+	create, id := r.request.create, r.request.create.Container.Id
+
+	if err := r.owners.ClaimLinuxScheduler(id, plugin); err != nil {
+		return err
+	}
+
+	create.Container.Linux.Scheduler = sch
+	r.reply.adjust.Linux.Scheduler = sch
+
+	return nil
+}
+
+func (r *result) adjustMemoryPolicy(memoryPolicy *LinuxMemoryPolicy, plugin string) error {
+	if memoryPolicy == nil {
+		return nil
+	}
+
+	id := r.request.create.Container.Id
+
+	if err := r.owners.ClaimMemoryPolicy(id, plugin); err != nil {
+		return err
+	}
+
+	r.reply.adjust.Linux.MemoryPolicy = memoryPolicy
+
+	return nil
+}
+
 func (r *result) adjustRlimits(rlimits []*POSIXRlimit, plugin string) error {
 	create, id, adjust := r.request.create, r.request.create.Container.Id, r.reply.adjust
 	for _, l := range rlimits {
@@ -919,6 +1003,41 @@ func (r *result) adjustRlimits(rlimits []*POSIXRlimit, plugin string) error {
 		create.Container.Rlimits = append(create.Container.Rlimits, l)
 		adjust.Rlimits = append(adjust.Rlimits, l)
 	}
+	return nil
+}
+
+func (r *result) adjustLinuxNetDevices(devices map[string]*LinuxNetDevice, plugin string) error {
+	if len(devices) == 0 {
+		return nil
+	}
+
+	create, id := r.request.create, r.request.create.Container.Id
+	del := map[string]struct{}{}
+	for k := range devices {
+		if key, marked := IsMarkedForRemoval(k); marked {
+			del[key] = struct{}{}
+			delete(devices, k)
+		}
+	}
+
+	for k, v := range devices {
+		if _, ok := del[k]; ok {
+			r.owners.ClearLinuxNetDevice(id, k, plugin)
+			delete(create.Container.Linux.NetDevices, k)
+			r.reply.adjust.Linux.NetDevices[MarkForRemoval(k)] = nil
+		}
+		if err := r.owners.ClaimLinuxNetDevice(id, k, plugin); err != nil {
+			return err
+		}
+		create.Container.Linux.NetDevices[k] = v
+		r.reply.adjust.Linux.NetDevices[k] = v
+		delete(del, k)
+	}
+
+	for k := range del {
+		r.reply.adjust.Linux.NetDevices[MarkForRemoval(k)] = nil
+	}
+
 	return nil
 }
 
