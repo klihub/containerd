@@ -20,6 +20,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"strings"
 
 	containerd "github.com/containerd/containerd/v2/client"
 	"github.com/containerd/containerd/v2/core/containers"
@@ -29,6 +30,7 @@ import (
 	sstore "github.com/containerd/containerd/v2/internal/cri/store/sandbox"
 	ctrdutil "github.com/containerd/containerd/v2/internal/cri/util"
 	"github.com/containerd/containerd/v2/pkg/blockio"
+	cdiopts "github.com/containerd/containerd/v2/pkg/cdi"
 	"github.com/containerd/errdefs"
 	"github.com/containerd/log"
 	"github.com/containerd/typeurl/v2"
@@ -316,6 +318,20 @@ func (a *API) WithContainerAdjustment() containerd.NewContainerOpts {
 		},
 	)
 
+	cdiInjectOpt := nrigen.WithCDIDeviceInjector(
+		func(s *runtimespec.Spec, devices []string) error {
+			if len(devices) == 0 {
+				return nil
+			}
+
+			if !a.cri.Config().EnableCDI {
+				return fmt.Errorf("can't inject CDI devices (%s): CDI is disabled by configuration", strings.Join(devices, ", "))
+			}
+
+			return cdiopts.WithCDIDevices(devices...)(context.TODO(), nil, nil, s)
+		},
+	)
+
 	return func(ctx context.Context, _ *containerd.Client, c *containers.Container) error {
 		spec := &runtimespec.Spec{}
 		if err := json.Unmarshal(c.Spec.GetValue(), spec); err != nil {
@@ -328,7 +344,7 @@ func (a *API) WithContainerAdjustment() containerd.NewContainerOpts {
 		}
 
 		sgen := generate.Generator{Config: spec}
-		ngen := nrigen.SpecGenerator(&sgen, resourceCheckOpt, rdtResolveOpt, blkioResolveOpt)
+		ngen := nrigen.SpecGenerator(&sgen, resourceCheckOpt, rdtResolveOpt, blkioResolveOpt, cdiInjectOpt)
 
 		err = ngen.Adjust(adjust)
 		if err != nil {
