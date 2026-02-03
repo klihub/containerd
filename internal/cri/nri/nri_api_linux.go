@@ -145,19 +145,19 @@ func (a *API) RemovePodSandbox(ctx context.Context, criPod *sstore.Sandbox) erro
 	return err
 }
 
-func (a *API) CreateContainer(ctx context.Context, ctrs *containers.Container, spec *runtimespec.Spec) (*api.ContainerAdjustment, error) {
+func (a *API) CreateContainer(ctx context.Context, ctrs *containers.Container, spec *runtimespec.Spec) (*api.ContainerAdjustment, *api.OwningPlugins, error) {
 	ctr := a.nriContainer(ctrs, withContainerSpec(spec))
 
 	criPod, err := a.cri.SandboxStore().Get(ctr.GetPodSandboxID())
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
 	pod := a.nriPodSandbox(&criPod)
 
-	adjust, err := a.nri.CreateContainer(ctx, pod, ctr)
+	adjust, owners, err := a.nri.CreateContainer(ctx, pod, ctr)
 
-	return adjust, err
+	return adjust, owners, err
 }
 
 func (a *API) PostCreateContainer(ctx context.Context, criPod *sstore.Sandbox, criCtr *cstore.Container) error {
@@ -360,7 +360,7 @@ func (a *API) WithContainerAdjustment() containerd.NewContainerOpts {
 			return fmt.Errorf("failed to unmarshal container OCI Spec for NRI: %w", err)
 		}
 
-		adjust, err := a.CreateContainer(ctx, c, spec)
+		adjust, owners, err := a.CreateContainer(ctx, c, spec)
 		if err != nil {
 			return fmt.Errorf("failed to get NRI adjustment for container: %w", err)
 		}
@@ -369,6 +369,18 @@ func (a *API) WithContainerAdjustment() containerd.NewContainerOpts {
 		}
 
 		sgen := generate.Generator{Config: spec}
+		if a.nri.LogSpecAdjustments() {
+			generatorOptions = append(
+				generatorOptions,
+				nrigen.WithLogger(
+					func(event string, fields map[string]any) {
+						fields["container"] = c.ID
+						log.G(ctx).WithFields(fields).Info(event)
+					},
+					owners.Owners[c.ID],
+				),
+			)
+		}
 		ngen := nrigen.SpecGenerator(&sgen, generatorOptions...)
 
 		err = ngen.Adjust(adjust)

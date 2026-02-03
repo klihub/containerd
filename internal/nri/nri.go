@@ -61,7 +61,7 @@ type API interface {
 	RemovePodSandbox(context.Context, PodSandbox) error
 
 	// CreateContainer relays container creation requests to NRI.
-	CreateContainer(context.Context, PodSandbox, Container) (*nri.ContainerAdjustment, error)
+	CreateContainer(context.Context, PodSandbox, Container) (*nri.ContainerAdjustment, *nri.OwningPlugins, error)
 
 	// PostCreateContainer relays successful container creation events to NRI.
 	PostCreateContainer(context.Context, PodSandbox, Container) error
@@ -89,6 +89,9 @@ type API interface {
 
 	// BlockPluginSync blocks plugin synchronization until it is Unblock()ed.
 	BlockPluginSync() *PluginSyncBlock
+
+	// LogSpecAdjustments returns true if OCI Spec adjustments should be logged.
+	LogSpecAdjustments() bool
 }
 
 type State int
@@ -146,6 +149,10 @@ func New(cfg *Config) (API, error) {
 
 func (l *local) IsEnabled() bool {
 	return l != nil && !l.cfg.Disable
+}
+
+func (l *local) LogSpecAdjustments() bool {
+	return l != nil && l.cfg.LogSpecAdjustments
 }
 
 func (l *local) Start() error {
@@ -265,9 +272,9 @@ func (l *local) RemovePodSandbox(ctx context.Context, pod PodSandbox) error {
 	return err
 }
 
-func (l *local) CreateContainer(ctx context.Context, pod PodSandbox, ctr Container) (*nri.ContainerAdjustment, error) {
+func (l *local) CreateContainer(ctx context.Context, pod PodSandbox, ctr Container) (*nri.ContainerAdjustment, *nri.OwningPlugins, error) {
 	if !l.IsEnabled() {
-		return nil, nil
+		return nil, nil, nil
 	}
 
 	l.Lock()
@@ -278,10 +285,10 @@ func (l *local) CreateContainer(ctx context.Context, pod PodSandbox, ctr Contain
 		Container: containerToNRI(ctr),
 	}
 
-	response, err := l.nri.CreateContainer(ctx, request)
+	response, owners, err := l.nri.CreateContainer(ctx, request)
 	l.setState(request.Container.Id, Created)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
 	_, err = l.evictContainers(ctx, response.Evict)
@@ -295,7 +302,7 @@ func (l *local) CreateContainer(ctx context.Context, pod PodSandbox, ctr Contain
 		log.G(ctx).WithError(err).Warnf("pre-create update failed")
 	}
 
-	return response.Adjust, nil
+	return response.Adjust, owners, nil
 }
 
 func (l *local) PostCreateContainer(ctx context.Context, pod PodSandbox, ctr Container) error {

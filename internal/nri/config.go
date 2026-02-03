@@ -42,6 +42,8 @@ type Config struct {
 	DisableConnections bool `toml:"disable_connections" json:"disableConnections"`
 	// DefaultValidator is the configuration for the built-in default validator.
 	DefaultValidator *validator.DefaultValidatorConfig `toml:"default_validator" json:"defaultValidator"`
+	// LogSpecAdjustments enables logging container OCI Spec adjustments.
+	LogSpecAdjustments bool `toml:"log_spec_adjustments" json:"logSpecAdjustments"`
 }
 
 // DefaultConfig returns the default configuration.
