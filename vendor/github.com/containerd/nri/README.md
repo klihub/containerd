@@ -93,7 +93,7 @@ to make.
 #### StateChange
 
 In the original wire protocol a single StateChange RPC call was used to multiplex
-most pod and container lifecycle events/requests on the wire. For externa plugins
+most pod and container lifecycle events/requests on the wire. For external plugins
 this RPC call has been replaced with proper dedicated calls for each request and
 is now deprecated. For the time being, the runtime adaptation transparently falls
 back to funneling requests through StateChange for plugins compiled against older

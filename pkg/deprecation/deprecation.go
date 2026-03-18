@@ -35,6 +35,8 @@ const (
 	TracingServiceConfig Warning = Prefix + "tracing-service-config"
 	// NRIV010Plugin is a warning for the use of NRI 0.1.0-style plugins
 	NRIV010Plugin Warning = Prefix + "nri-v010-plugin"
+	// NRIPluginInterface is a warning for the use of a deprecated NRI interface.
+	NRIPluginInterface Warning = Prefix + "nri-plugin-interface"
 	// CgroupV1 is a warning for the use of cgroup v1
 	CgroupV1 Warning = Prefix + "cgroup-v1"
 	// CRIEnableCDI is a warning for the use of the `enable_cdi` property
@@ -59,9 +61,10 @@ var messages = map[Warning]string{
 		"Use OTLP environment variables instead: https://opentelemetry.io/docs/specs/otel/protocol/exporter/",
 	TracingServiceConfig: "The `tracing` property of `[plugins.\"io.containerd.internal.v1\".tracing]` is deprecated since containerd v1.6 and will be removed in containerd v2.4. " +
 		"Use OTEL environment variables instead: https://opentelemetry.io/docs/specs/otel/configuration/sdk-environment-variables/",
-	NRIV010Plugin: "NRI 0.1.0-style plugins are deprecated since containerd 2.2 and should only be used through the v010-adapter plugin.",
-	CgroupV1:      "The support for cgroup v1 is deprecated since containerd v2.2 and will be removed by no later than May 2029. Upgrade the host to use cgroup v2.",
-	CRIEnableCDI:  "The `enable_cdi` property of `[plugins.\"io.containerd.cri.v1.runtime\"]` is deprecated, will be removed in containerd v2.3, and CDI support will always be enabled.",
+	NRIV010Plugin:      "NRI 0.1.0-style plugins are deprecated since containerd 2.2 and should only be used through the v010-adapter plugin.",
+	NRIPluginInterface: "NRI plugin uses a deprecated interface.",
+	CgroupV1:           "The support for cgroup v1 is deprecated since containerd v2.2 and will be removed by no later than May 2029. Upgrade the host to use cgroup v2.",
+	CRIEnableCDI:       "The `enable_cdi` property of `[plugins.\"io.containerd.cri.v1.runtime\"]` is deprecated, will be removed in containerd v2.3, and CDI support will always be enabled.",
 }
 
 // Valid checks whether a given Warning is valid

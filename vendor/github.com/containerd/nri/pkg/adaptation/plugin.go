@@ -1007,10 +1007,12 @@ func (p *plugin) warnDeprecatedEvent(ctx context.Context, event Event) {
 
 	if p.r.deprecation != nil {
 		p.r.deprecation.PluginWarning(ctx, DeprecatedStateChange, p.name(),
-			fmt.Sprintf("does not implement %s", event.PrettyName()))
+			fmt.Sprintf("does not implement a dedicated %s RPC call", event.PrettyName()))
 	} else {
-		log.Warnf(ctx, "plugin %s uses StateChange, does not implement %s",
+		log.Warnf(ctx, "plugin %s uses deprecated StateChange instead of a dedicated %s RPC call",
 			p.name(), event.PrettyName())
+		log.Warnf(ctx, "please update %s with a newer version of NRI for future compatibility",
+			p.name())
 	}
 
 	p.impl.warned[event] = true
