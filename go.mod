@@ -137,7 +137,7 @@ require (
 	github.com/sasha-s/go-deadlock v0.3.5 // indirect
 	github.com/smallstep/pkcs7 v0.1.1 // indirect
 	github.com/stefanberger/go-pkcs11uri v0.0.0-20230803200340-78284954bff6 // indirect
-	github.com/tetratelabs/wazero v1.10.1 // indirect
+	github.com/tetratelabs/wazero v1.11.0 // indirect
 	github.com/x448/float16 v0.8.4 // indirect
 	github.com/xrash/smetrics v0.0.0-20240521201337-686a1a2994c1 // indirect
 	go.opencensus.io v0.24.0 // indirect
@@ -163,4 +163,10 @@ require (
 	tags.cncf.io/container-device-interface/specs-go v1.1.0 // indirect
 )
 
-replace github.com/containerd/containerd/api => ./api
+replace (
+	github.com/containerd/containerd/api => ./api
+
+	github.com/containerd/nri => github.com/klihub/nri v0.0.0-20260402153210-ac560d9df03f
+	tags.cncf.io/container-device-interface => github.com/klihub/container-device-interface v0.0.0-20260331111916-d5ab513f8e32
+	tags.cncf.io/container-device-interface/specs-go => github.com/klihub/container-device-interface/specs-go v0.0.0-20260331111916-d5ab513f8e32
+)
