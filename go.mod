@@ -159,3 +159,5 @@ require (
 	sigs.k8s.io/yaml v1.6.0 // indirect
 	tags.cncf.io/container-device-interface/specs-go v1.1.1 // indirect
 )
+
+replace github.com/containerd/nri => github.com/klihub/nri v0.12.6-streaming.1

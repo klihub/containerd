@@ -68,7 +68,7 @@ all: build build-plugins
 
 build: build-proto build-check
 
-clean: clean-plugins
+clean: clean-plugins clean-nri-test
 
 allclean: clean clean-cache
 
@@ -232,3 +232,19 @@ install-wasm-plugin:
 
 install-protoc-dependencies:
 	$(Q)GOBIN="$(PROTOC_PATH)/bin" $(GO_INSTALL) google.golang.org/protobuf/cmd/protoc-gen-go
+
+nri-test: go-generate
+	$(Q)mkdir -p $(BIN_PATH)
+	$(Q)cd test/nri-test && \
+	    $(GO_CMD) test -c -o $(BIN_PATH)/nri-test ./suite
+
+nri-test-status:
+	$(Q)cd test/nri-test && \
+	    $(GO_CMD) run ./cmd/runtime-status
+
+nri-test-status-check:
+	$(Q)cd test/nri-test && \
+	    $(GO_CMD) run ./cmd/runtime-status -check
+
+clean-nri-test:
+	$(Q)rm -f $(BIN_PATH)/nri-test
