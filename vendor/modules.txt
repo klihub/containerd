@@ -235,7 +235,7 @@ github.com/containerd/log/logtest
 # github.com/containerd/log/otel v0.1.0
 ## explicit; go 1.23
 github.com/containerd/log/otel
-# github.com/containerd/nri v0.12.5
+# github.com/containerd/nri v0.12.5 => /u/src/kli/work/devel/nri/graceful-plugin-updates
 ## explicit; go 1.24.0
 github.com/containerd/nri
 github.com/containerd/nri/pkg/adaptation
@@ -1046,3 +1046,4 @@ tags.cncf.io/container-device-interface/pkg/parser
 # tags.cncf.io/container-device-interface/specs-go v1.1.1
 ## explicit; go 1.19
 tags.cncf.io/container-device-interface/specs-go
+# github.com/containerd/nri => /u/src/kli/work/devel/nri/graceful-plugin-updates

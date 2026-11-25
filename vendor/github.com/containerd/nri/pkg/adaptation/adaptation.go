@@ -44,6 +44,12 @@ const (
 	DefaultSocketPath = api.DefaultSocketPath
 	// DefaultPluginConfigPath is the drop-in directory for NRI-launched plugin configuration.
 	DefaultPluginConfigPath = "/etc/nri/conf.d"
+	// DefaultMaxParkedPlugins is the default number of parked plugins kept
+	// per plugin name. Parking a plugin keeps its connection open, so a
+	// name which is updated repeatedly would otherwise accumulate them.
+	// A rolling update of a plugin parks one instance, so this leaves one
+	// instance of slack over what such an update needs.
+	DefaultMaxParkedPlugins = 2
 )
 
 // SyncFn is a container runtime function for state synchronization.
@@ -72,6 +78,8 @@ type Adaptation struct {
 	listener    net.Listener
 	plugins     []*plugin
 	validators  []*plugin
+	registry    *registry
+	maxParked   int
 	builtin     []*builtin.BuiltinPlugin
 	syncLock    sync.RWMutex
 	wasmService *api.PluginPlugin
@@ -139,6 +147,19 @@ func WithBuiltinPlugins(plugins ...*builtin.BuiltinPlugin) Option {
 	}
 }
 
+// WithMaxParkedPlugins sets how many parked plugins are kept per plugin
+// name. A plugin replaced by a new instance of its name is parked, which
+// keeps its connection open. The plugins parked longest ago beyond this
+// many are closed. Values below one are ignored.
+func WithMaxParkedPlugins(count int) Option {
+	return func(r *Adaptation) error {
+		if count >= 1 {
+			r.maxParked = count
+		}
+		return nil
+	}
+}
+
 // WithMetrics allows consumers to register an implementation of the Metrics interface.
 func WithMetrics(m Metrics) Option {
 	return func(r *Adaptation) error {
@@ -197,6 +218,7 @@ func New(name, version string, syncFn SyncFn, updateFn UpdateFn, opts ...Option)
 		dropinPath:  DefaultPluginConfigPath,
 		socketPath:  DefaultSocketPath,
 		syncLock:    sync.RWMutex{},
+		maxParked:   DefaultMaxParkedPlugins,
 		wasmService: wasmService,
 		metrics:     &noopMetrics{},
 	}
@@ -206,6 +228,8 @@ func New(name, version string, syncFn SyncFn, updateFn UpdateFn, opts ...Option)
 			return nil, fmt.Errorf("failed to apply option: %w", err)
 		}
 	}
+
+	r.registry = newRegistry(r.maxParked)
 
 	log.Infof(noCtx, "runtime interface created")
 
@@ -584,6 +608,10 @@ func (r *Adaptation) startPlugins() (retErr error) {
 			return fmt.Errorf("failed to initialize builtin NRI plugin %q: %v", b.Base, err)
 		}
 
+		if err := r.registry.Claim(p); err != nil {
+			return fmt.Errorf("failed to register builtin NRI plugin %q: %w", p.name(), err)
+		}
+
 		if err := p.start(r.name, r.version); err != nil {
 			return fmt.Errorf("failed to start builtin NRI plugin %q: %v", b.Base, err)
 		}
@@ -601,8 +629,14 @@ func (r *Adaptation) startPlugins() (retErr error) {
 			continue
 		}
 
+		if err := r.registry.Claim(p); err != nil {
+			log.Warnf(noCtx, "failed to register pre-installed NRI plugin %q: %v", p.name(), err)
+			continue
+		}
+
 		if err := p.start(r.name, r.version); err != nil {
 			log.Warnf(noCtx, "failed to start pre-installed NRI plugin %q: %v", name, err)
+			r.registry.Release(p)
 			continue
 		}
 
@@ -618,6 +652,7 @@ func (r *Adaptation) startPlugins() (retErr error) {
 			us, err := plugin.synchronize(ctx, pods, containers)
 			if err != nil {
 				plugin.stop()
+				r.registry.Release(plugin)
 				log.Warnf(noCtx, "failed to synchronize pre-installed NRI plugin %q: %v", plugin.name(), err)
 				continue
 			}
@@ -632,8 +667,18 @@ func (r *Adaptation) startPlugins() (retErr error) {
 		return fmt.Errorf("failed to synchronize pre-installed NRI Plugins: %w", err)
 	}
 
+	for _, p := range plugins {
+		r.registry.Commit(p)
+		p.setLive(true)
+	}
+
 	r.plugins = plugins
 	r.sortPlugins()
+
+	for _, p := range plugins {
+		p.updateStatus(noCtx, api.PluginStatus_PLUGIN_STATUS_LIVE, api.StatusReasonRegistered)
+	}
+
 	return nil
 }
 
@@ -642,6 +687,11 @@ func (r *Adaptation) stopPlugins() {
 	log.Infof(noCtx, "stopping plugins...")
 
 	for _, p := range r.plugins {
+		p.setLive(false)
+		// Close the connection, not just the plugin we launched: a plugin
+		// which is left connected has no way to tell that the runtime it
+		// is registered with is gone.
+		p.close()
 		p.stop()
 	}
 	r.plugins = nil
@@ -653,6 +703,20 @@ func (r *Adaptation) stopPlugins() {
 // the end of the next request. Until then, requests skip it: a request
 // relayed to it fails with ttrpc.ErrClosed, and a fail_request policy
 // would fail the request for a plugin that is already gone.
+// parkPlugin takes a plugin out of the set of plugins which get relayed
+// requests and events, leaving its connection alone.
+func (r *Adaptation) parkPlugin(p *plugin) {
+	plugins := make([]*plugin, 0, len(r.plugins))
+	for _, o := range r.plugins {
+		if o != p {
+			plugins = append(plugins, o)
+		}
+	}
+
+	p.setLive(false)
+	r.plugins = plugins
+}
+
 func (r *Adaptation) removeClosedPlugins() {
 	var active, closed, validators []*plugin
 	for _, p := range r.plugins {
@@ -732,6 +796,11 @@ func (r *Adaptation) acceptPluginConnections(l net.Listener) error {
 				continue
 			}
 
+			var (
+				replaced *plugin
+				expired  []*plugin
+			)
+
 			r.requestPluginSync()
 			err = r.syncFn(ctx, p.synchronize)
 			if err != nil {
@@ -739,9 +808,16 @@ func (r *Adaptation) acceptPluginConnections(l net.Listener) error {
 				p.close()
 			} else {
 				r.Lock()
+				replaced, expired = r.registry.Commit(p)
+				p.setLive(true)
 				r.plugins = append(r.plugins, p)
 				if p.isContainerAdjustmentValidator() {
 					r.validators = append(r.validators, p)
+				}
+				if replaced != nil {
+					r.parkPlugin(replaced)
+					log.Warnf(ctx, "plugin %q replaced by a new instance, parking the old one",
+						replaced.name())
 				}
 				r.sortPlugins()
 				count := len(r.plugins)
@@ -750,6 +826,25 @@ func (r *Adaptation) acceptPluginConnections(l net.Listener) error {
 				log.Infof(ctx, "plugin %q connected and synchronized", p.name())
 			}
 			r.finishedPluginSync()
+
+			// Tell the plugins their status once no lock is held: these
+			// are two more round trips, and the sync block they would
+			// otherwise land in blocks every request in the runtime.
+			if err == nil {
+				reason := api.StatusReasonRegistered
+				if replaced != nil {
+					replaced.updateStatus(ctx, api.PluginStatus_PLUGIN_STATUS_PARKED,
+						api.StatusReasonReplaced)
+					reason = api.StatusReasonReplacedOther
+				}
+				p.updateStatus(ctx, api.PluginStatus_PLUGIN_STATUS_LIVE, reason)
+			}
+
+			for _, o := range expired {
+				log.Warnf(ctx, "closing plugin %q: more than %d parked instances of the name",
+					o.name(), r.maxParked)
+				o.close()
+			}
 		}
 	}()
 

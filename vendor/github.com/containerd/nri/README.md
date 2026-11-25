@@ -37,11 +37,12 @@ request and provide a response, both as JSON data.
 
 Plugins in NRI are daemon-like entities. A single instance of a plugin is
 now responsible for handling the full stream of NRI events and requests. A
-unix-domain socket is used as the transport for communication. Instead of
-JSON requests and responses NRI is defined as a formal, protobuf-based
-'NRI plugin protocol' which is compiled into ttRPC bindings. This should
-result in improved communication efficiency with lower per-message overhead,
-and enable straightforward implementation of stateful NRI plugins.
+unix-domain socket (by default `/var/run/nri/nri.sock`) is used as the transport
+for communication. Instead of JSON requests and responses NRI is defined as a
+formal, protobuf-based 'NRI plugin protocol' which is compiled into ttRPC
+bindings. This should result in improved communication efficiency with lower
+per-message overhead, and enable straightforward implementation of stateful
+NRI plugins.
 
 ## Components
 
@@ -134,6 +135,55 @@ updates it considers necessary to any of the known containers in response.
 Once the handshake sequence is over and the plugin has registered with NRI,
 it will start receiving pod and container lifecycle events according to its
 subscription.
+
+### Plugin Updates
+
+A plugin name, together with its index, identifies a plugin to NRI. At
+most one instance of that indexed name is live: it is the instance NRI
+relays requests and events to.
+
+When another instance registers with the indexed name of a plugin which
+is already live, it is configured and synchronized while the live one
+keeps serving. Once the newcomer has synchronized, it becomes the live
+instance and the one it replaced is parked. A parked plugin stays
+connected, but it gets no requests or events, it cannot request
+unsolicited container updates, and it is never made live again. If the
+newcomer fails to register, to get configured or to synchronize, the
+plugin it would have replaced stays live and unaffected.
+
+NRI does not disconnect a plugin it parks. The plugin is expected to go
+away when whatever started it stops it, for instance when Kubernetes
+deletes the pod of the plugin instance being replaced. Each instance is
+sent exactly one Synchronize request, as the last step of its own
+registration.
+
+A parked plugin keeps its connection, so NRI keeps a limited number of
+them per plugin name, two by default. Beyond that the plugin parked
+longest ago is closed. A rolling update parks one instance, so the
+default leaves one instance of slack over what such an update needs,
+and bounds what a name whose instances are replaced repeatedly, without
+the replaced ones ever going away, can accumulate.
+
+Two rules limit which registration can take over a name:
+
+  - an externally started plugin cannot take over the name of a builtin
+    plugin or of a plugin which NRI launched itself
+  - two builtin plugins cannot share an indexed name
+
+A new instance of a plugin which registers with a different index is a
+different plugin to NRI. It does not take over, and both instances run.
+
+NRI tells every plugin its status with an UpdatePluginStatus request,
+both when it becomes live and when it is parked. The request carries a
+human readable reason, and it is informational: being parked is not a
+request to exit. The stub records the status and a plugin can read it
+with `Status()`, or ask about being live alone with `IsLive()`.
+
+A runtime which does not send plugin status updates leaves the status
+PLUGIN_STATUS_UNKNOWN, as does losing the connection; `IsStarted()`
+tells these two apart. Such a runtime also has no notion of a single
+live instance, so it has no handover to report: every instance which
+registers with an indexed name receives events.
 
 ### Request Errors, Timeouts and Failure Policy
 
@@ -588,6 +638,47 @@ access to these sockets and can act as NRI or Device Plugins. See the
 [related documentation](https://kubernetes.io/docs/concepts/security/)
 and [best practices](https://kubernetes.io/docs/setup/best-practices/enforcing-pod-security-standards/)
 about Kubernetes security.
+
+A DaemonSet rolling update can hand a node over from one instance of a
+plugin to the next without a gap in coverage. With `maxSurge` set and
+`maxUnavailable` set to zero, the new pod starts while the old one is
+still running, and the new instance takes over the plugin name once it
+has synchronized, as described in [Plugin Updates](#plugin-updates).
+The old instance is parked at that point and stops receiving events, so
+no event is processed twice.
+
+This requires the readiness probe of the plugin to report the state NRI
+is in rather than what the plugin did: use `IsLive()` from the stub, and
+not the fact that the plugin answered a Synchronize request. A plugin
+which answers Synchronize later than the configured request timeout is
+not live, however far it got in processing the request. Reporting ready
+on such an answer tells Kubernetes to delete the old pod, which leaves
+the node with no instance of the plugin at all.
+
+A plugin which also runs against runtimes too old to send plugin status
+updates needs its own answer for those: `IsLive()` never reports true
+there. Such a runtime keeps every registered instance of a name live, so
+a rolling update on it means two instances processing the same events
+until the old pod goes away.
+
+In SELinux-enabled environments, containerized plugins may require an
+appropriate SELinux type configured in the pod's security context to access
+the host socket. Kubernetes and the host operating system's SELinux
+implementation determine the style used for SELinux options. As an example
+on distributions using Fedora/RHEL-style policies, `spc_t` (Super Privileged
+Container) can be used to allow host socket access:
+```yaml
+spec:
+  template:
+    spec:
+      containers:
+        - name: plugin
+          ...
+          securityContext:
+            ...
+            seLinuxOptions:
+              type: spc_t
+```
 
 ## API Stability
 
